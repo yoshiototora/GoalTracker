@@ -7,25 +7,29 @@
 
 import SwiftUI
 
-// アプリの大枠となるタブ画面
+// MARK: - データモデル（タスクの設計図）
+struct Task: Identifiable {
+    let id = UUID()
+    var title: String
+    var isCompleted: Bool = false
+}
+
+// MARK: - 1. アプリの大枠（タブ画面）
 struct ContentView: View {
     var body: some View {
         TabView {
-            // 1. ホーム画面
             HomeView()
                 .tabItem {
                     Image(systemName: "house")
                     Text("ホーム")
                 }
             
-            // 2. 振り返り画面
             ReflectionView()
                 .tabItem {
                     Image(systemName: "square.and.pencil")
                     Text("振り返り")
                 }
             
-            // 3. カレンダー画面
             CalendarView()
                 .tabItem {
                     Image(systemName: "calendar")
@@ -35,69 +39,154 @@ struct ContentView: View {
     }
 }
 
-// ホーム画面の中身
+// MARK: - 2. ホーム画面（タスク管理）
 struct HomeView: View {
-    // チェックの状態を管理する変数
-    @State private var task1Completed = false
-    @State private var task2Completed = false
+    // 複数のタスクを入れる配列（ロッカー）
+    @State private var tasks: [Task] = [
+        Task(title: "先行研究のサーベイを1本完了させる", isCompleted: true),
+        Task(title: "データ集計のスクリプトを書く", isCompleted: false)
+    ]
+    // 入力欄のテキストを保存する変数
+    @State private var newTaskTitle = ""
     
     var body: some View {
         NavigationView {
-            List {
-                Section(header: Text("今日のサブタスク")) {
+            VStack {
+                // ▼ 新規タスク追加エリア ▼
+                HStack {
+                    TextField("新しいタスクを入力...", text: $newTaskTitle)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
                     
-                    // ▼ タスク1 ▼
-                    Button(action: {
-                        // タップした時にチェックを反転させる
-                        task1Completed.toggle()
-                    }) {
-                        HStack {
-                            // アイコン部分（チェックの有無で画像を切り替え）
-                            Image(systemName: task1Completed ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(task1Completed ? .green : .gray)
-                                .font(.title2) // アイコンを少し大きめにして押しやすくする
-                            
-                            // テキスト部分
-                            Text("先行研究のサーベイを1本完了させる")
-                                .strikethrough(task1Completed, color: .gray)
-                                .foregroundColor(task1Completed ? .gray : .primary)
-                        }
+                    Button(action: addTask) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title)
+                            .foregroundColor(.blue)
                     }
-                    .buttonStyle(PlainButtonStyle()) // これを入れることで行全体が青文字になるのを防ぐ
-                    
-                    // ▼ タスク2 ▼
-                    Button(action: {
-                        task2Completed.toggle()
-                    }) {
-                        HStack {
-                            Image(systemName: task2Completed ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(task2Completed ? .green : .gray)
-                                .font(.title2)
-                            
-                            Text("データ集計のスクリプトを書く")
-                                .strikethrough(task2Completed, color: .gray)
-                                .foregroundColor(task2Completed ? .gray : .primary)
+                }
+                .padding()
+                
+                // ▼ タスク一覧エリア ▼
+                List {
+                    Section(header: Text("今日のサブタスク")) {
+                        // 配列の中身を順番に取り出して表示
+                        ForEach($tasks) { $task in
+                            Button(action: {
+                                task.isCompleted.toggle()
+                            }) {
+                                HStack {
+                                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(task.isCompleted ? .green : .gray)
+                                        .font(.title2)
+                                    
+                                    Text(task.title)
+                                        .strikethrough(task.isCompleted, color: .gray)
+                                        .foregroundColor(task.isCompleted ? .gray : .primary)
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
+                        .onDelete(perform: deleteTasks) // スワイプで削除
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    
                 }
             }
             .navigationTitle("今日の目標")
         }
     }
+    
+    // タスクを追加する処理
+    func addTask() {
+        if !newTaskTitle.isEmpty {
+            tasks.append(Task(title: newTaskTitle))
+            newTaskTitle = "" // 入力欄を空にする
+        }
+    }
+    
+    // タスクを削除する処理
+    func deleteTasks(at offsets: IndexSet) {
+        tasks.remove(atOffsets: offsets)
+    }
 }
 
-// 振り返り画面
+// MARK: - 3. 振り返り画面（KPT法）
 struct ReflectionView: View {
+    @State private var keepText = ""
+    @State private var problemText = ""
+    @State private var tryText = ""
+    
     var body: some View {
-        Text("ここにKPTを入力する画面を作ります")
+        NavigationView {
+            Form {
+                Section(header: Text("Keep (良かったこと・続けること)")) {
+                    TextEditor(text: $keepText)
+                        .frame(height: 80)
+                }
+                
+                Section(header: Text("Problem (課題・反省点)")) {
+                    TextEditor(text: $problemText)
+                        .frame(height: 80)
+                }
+                
+                Section(header: Text("Try (次に挑戦すること・改善策)")) {
+                    TextEditor(text: $tryText)
+                        .frame(height: 80)
+                }
+                
+                // 保存ボタン
+                Button(action: {
+                    print("保存ボタンが押されました")
+                }) {
+                    Text("振り返りを保存する")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .cornerRadius(10)
+                }
+                .listRowBackground(Color.clear) // 背景を透明にしてボタンだけ目立たせる
+            }
+            .navigationTitle("今日の振り返り")
+        }
     }
 }
 
-// カレンダー画面
+// MARK: - 4. カレンダー画面（ヒートマップ風）
 struct CalendarView: View {
+    // 7列のグリッド（マス目）を作る設定
+    let columns = Array(repeating: GridItem(.flexible()), count: 7)
+    
     var body: some View {
-        Text("ここにヒートマップのカレンダーを作ります")
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading) {
+                    Text("活動ヒートマップ（モックアップ）")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                        .padding(.horizontal)
+                    
+                    // カレンダーのマス目を描画
+                    LazyVGrid(columns: columns, spacing: 10) {
+                        ForEach(1...30, id: \.self) { day in
+                            RoundedRectangle(cornerRadius: 4)
+                                // 達成度合いによって緑の濃さが変わるイメージ（乱数でランダムな濃さにしています）
+                                .fill(Color.green.opacity(Double.random(in: 0.1...1.0)))
+                                .aspectRatio(1, contentMode: .fit)
+                                .overlay(
+                                    Text("\(day)")
+                                        .font(.caption2)
+                                        .foregroundColor(.white)
+                                )
+                        }
+                    }
+                    .padding()
+                }
+            }
+            .navigationTitle("カレンダー")
+        }
     }
+}
+
+// MARK: - プレビュー用
+#Preview {
+    ContentView()
 }
