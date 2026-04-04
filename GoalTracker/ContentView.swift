@@ -17,12 +17,19 @@ struct DailyNote {
     var weeklyReflection: String = ""
     var monthlyReflection: String = ""
     var hasAutoPopulated: Bool = false
+    // 自己評価（週次・月次の計算に使用）
+    var selfRating: Int = 0
+}
+
+struct Goal: Identifiable, Equatable {
+    let id = UUID()
+    var title: String
 }
 
 struct MonthData {
-    var monthlyGoals: [String] = []
-    var weeklyGoals: [String] = []
-    var dailyGoals: [String] = []
+    var monthlyGoals: [Goal] = []
+    var weeklyGoals: [Goal] = []
+    var dailyGoals: [Goal] = []
 }
 
 struct Task: Identifiable, Equatable {
@@ -49,22 +56,77 @@ class AppDataManager: ObservableObject {
         objectWillChange.send()
     }
     
+    // MARK: - 達成率計算ロジック
+    
+    // 単日のタスク達成率
+    func getDailyCompletionRate(for date: Date) -> Double {
+        let tasks = getNote(for: date).tasks
+        guard !tasks.isEmpty else { return 0.0 }
+        return Double(tasks.filter { $0.isCompleted }.count) / Double(tasks.count)
+    }
+    
+    // 指定された期間（週・月）の「日の自動計算」の平均値
+    private func getAverageDailyRate(for dates: [Date]) -> Double {
+        let rates = dates.map { getDailyCompletionRate(for: $0) }
+        return rates.reduce(0, +) / Double(rates.count)
+    }
+
+    // 週次の複合達成度
+    func calculateWeeklyCompositeRate(for sundayDate: Date) -> Double {
+        let calendar = Calendar.current
+        var weekDates: [Date] = []
+        // 日曜日から遡って7日分
+        for i in 0..<7 {
+            if let date = calendar.date(byAdding: .day, value: -i, to: sundayDate) {
+                weekDates.append(date)
+            }
+        }
+        let avgDaily = getAverageDailyRate(for: weekDates)
+        let selfRate = Double(getNote(for: sundayDate).selfRating) / 5.0
+        
+        return (avgDaily + selfRate) / 2.0
+    }
+
+    // 月次の複合達成度
+    func calculateMonthlyCompositeRate(for lastDayOfMonth: Date) -> Double {
+        let calendar = Calendar.current
+        let range = calendar.range(of: .day, in: .month, for: lastDayOfMonth)!
+        let components = calendar.dateComponents([.year, .month], from: lastDayOfMonth)
+        
+        var monthDates: [Date] = []
+        var sundays: [Date] = []
+        
+        for day in 1...range.count {
+            var comps = components
+            comps.day = day
+            if let date = calendar.date(from: comps) {
+                monthDates.append(date)
+                // その日が日曜日なら保持
+                if calendar.component(.weekday, from: date) == 1 {
+                    sundays.append(date)
+                }
+            }
+        }
+        
+        let avgDaily = getAverageDailyRate(for: monthDates)
+        let avgWeeklySelf = sundays.isEmpty ? 0 : sundays.map { Double(getNote(for: $0).selfRating) / 5.0 }.reduce(0, +) / Double(sundays.count)
+        let monthlySelf = Double(getNote(for: lastDayOfMonth).selfRating) / 5.0
+        
+        return (avgDaily + avgWeeklySelf + monthlySelf) / 3.0
+    }
+
+    // MARK: - 補助関数
     func prepareDailyTasksIfNeeded(for date: Date) {
         var note = getNote(for: date)
         if note.hasAutoPopulated || !note.tasks.isEmpty { return }
         
         let monthData = getMonthData(for: date)
-        for goal in monthData.dailyGoals {
-            note.tasks.append(Task(title: "🎯 " + goal))
-        }
+        for goal in monthData.dailyGoals { note.tasks.append(Task(title: "🎯 " + goal.title)) }
         
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date)!
         let yesterdayNote = getNote(for: yesterday)
-        
         for tryItem in yesterdayNote.tryList {
-            if !tryItem.isEmpty {
-                note.tasks.append(Task(title: "🔥 【昨日のTry】" + tryItem))
-            }
+            if !tryItem.isEmpty { note.tasks.append(Task(title: "🔥 【昨日のTry】" + tryItem)) }
         }
         
         if !note.tasks.isEmpty {
@@ -98,7 +160,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - 4. ホーム画面
+// MARK: - 4. ホーム画面 (変更なし)
 struct HomeView: View {
     @ObservedObject var dataManager: AppDataManager
     @State private var newTaskTitle = ""
@@ -107,7 +169,7 @@ struct HomeView: View {
         let currentNote = dataManager.getNote(for: dataManager.selectedDate)
         NavigationView {
             VStack {
-                Text(dataManager.dateKey(dataManager.selectedDate) + " のタスク").font(.caption).foregroundColor(.gray)
+                Text(dataManager.dateKey(dataManager.selectedDate)).font(.caption).foregroundColor(.gray)
                 HStack {
                     TextField("新しいタスク...", text: $newTaskTitle).textFieldStyle(RoundedBorderTextFieldStyle())
                     Button(action: addTask) { Image(systemName: "plus.circle.fill").font(.title) }
@@ -125,9 +187,7 @@ struct HomeView: View {
             }
             .navigationTitle("今日のタスク")
             .id(dataManager.selectedDate)
-            .onAppear {
-                dataManager.prepareDailyTasksIfNeeded(for: dataManager.selectedDate)
-            }
+            .onAppear { dataManager.prepareDailyTasksIfNeeded(for: dataManager.selectedDate) }
         }
     }
     func addTask() {
@@ -149,7 +209,7 @@ struct HomeView: View {
     }
 }
 
-// MARK: - 5. 振り返り画面 (iOS 17+ 修正版)
+// MARK: - 5. 振り返り画面 (自己評価の出し分け)
 struct ReflectionView: View {
     @ObservedObject var dataManager: AppDataManager
     @State private var reflectionType = 0
@@ -172,32 +232,35 @@ struct ReflectionView: View {
                     if isSunday { Text("週次").tag(1) }
                     if isLastDayOfMonth { Text("月次").tag(2) }
                 }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding()
-                // ★ ここを iOS 17 以降の書き方に修正
-                .onChange(of: dataManager.selectedDate) { oldDate, newDate in
-                    reflectionType = 0
+                .pickerStyle(SegmentedPickerStyle()).padding()
+                .onChange(of: dataManager.selectedDate) { _, _ in reflectionType = 0 }
+
+                // 達成度サマリーの出し分け
+                if reflectionType == 0 {
+                    AchievementCard(title: "今日のタスク完了率", rate: dataManager.getDailyCompletionRate(for: dataManager.selectedDate), showStars: false, selfRating: .constant(0))
+                } else if reflectionType == 1 {
+                    AchievementCard(title: "週次・複合達成度", rate: dataManager.calculateWeeklyCompositeRate(for: dataManager.selectedDate), showStars: true, selfRating: Binding(get: { note.selfRating }, set: { updateSelfRating($0) }))
+                } else {
+                    AchievementCard(title: "月次・複合達成度", rate: dataManager.calculateMonthlyCompositeRate(for: dataManager.selectedDate), showStars: true, selfRating: Binding(get: { note.selfRating }, set: { updateSelfRating($0) }))
                 }
 
                 Form {
                     if reflectionType == 0 {
-                        Section(header: Text("KPT振り返り (日次)")) {
+                        Section(header: Text("KPT振り返り")) {
                             TextEditorView(title: "Keep", text: Binding(get: { note.keep }, set: { updateNote($0, field: .keep) }))
                             TextEditorView(title: "Problem", text: Binding(get: { note.problem }, set: { updateNote($0, field: .problem) }))
-                            
-                            BulletInputSection(title: "Try (箇条書き・翌日タスク化)", items: note.tryList) { newList in
-                                var updatedNote = note
-                                updatedNote.tryList = newList
+                            BulletInputSection(title: "Try (翌日タスク化)", items: note.tryList) { newList in
+                                var updatedNote = note; updatedNote.tryList = newList
                                 dataManager.saveNote(updatedNote, for: dataManager.selectedDate)
                             }
                         }
-                    } else if reflectionType == 1 && isSunday {
-                        Section(header: Text("週の振り返り")) {
-                            TextEditorView(title: "今週の振り返り", text: Binding(get: { note.weeklyReflection }, set: { updateNote($0, field: .weekly) }), minHeight: 200)
+                    } else if reflectionType == 1 {
+                        Section(header: Text("週次振り返り")) {
+                            TextEditorView(title: "今週のまとめ", text: Binding(get: { note.weeklyReflection }, set: { updateNote($0, field: .weekly) }), minHeight: 150)
                         }
-                    } else if reflectionType == 2 && isLastDayOfMonth {
-                        Section(header: Text("月の振り返り")) {
-                            TextEditorView(title: "今月の振り返り", text: Binding(get: { note.monthlyReflection }, set: { updateNote($0, field: .monthly) }), minHeight: 200)
+                    } else {
+                        Section(header: Text("月次振り返り")) {
+                            TextEditorView(title: "今月のまとめ", text: Binding(get: { note.monthlyReflection }, set: { updateNote($0, field: .monthly) }), minHeight: 150)
                         }
                     }
                 }
@@ -206,20 +269,55 @@ struct ReflectionView: View {
         }
     }
     
+    func updateSelfRating(_ rating: Int) {
+        var note = dataManager.getNote(for: dataManager.selectedDate); note.selfRating = rating
+        dataManager.saveNote(note, for: dataManager.selectedDate)
+    }
+    
     enum Field { case keep, problem, weekly, monthly }
     func updateNote(_ text: String, field: Field) {
         var note = dataManager.getNote(for: dataManager.selectedDate)
-        switch field {
-        case .keep: note.keep = text
-        case .problem: note.problem = text
-        case .weekly: note.weeklyReflection = text
-        case .monthly: note.monthlyReflection = text
-        }
+        switch field { case .keep: note.keep = text; case .problem: note.problem = text; case .weekly: note.weeklyReflection = text; case .monthly: note.monthlyReflection = text }
         dataManager.saveNote(note, for: dataManager.selectedDate)
     }
 }
 
-// MARK: - 6. カレンダー画面
+// MARK: - 達成度表示用カード
+struct AchievementCard: View {
+    let title: String
+    let rate: Double
+    let showStars: Bool
+    @Binding var selfRating: Int
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(title).font(.subheadline).foregroundColor(.secondary)
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("\(Int(rate * 100))%").font(.system(size: 40, weight: .bold, design: .rounded)).foregroundColor(.blue)
+                    Text(showStars ? "（自動＋評価の平均）" : "（自動計算のみ）").font(.caption2).foregroundColor(.gray)
+                }
+                Spacer()
+                if showStars {
+                    VStack(alignment: .trailing) {
+                        Text("自己評価").font(.caption).foregroundColor(.gray)
+                        HStack(spacing: 4) {
+                            ForEach(1...5, id: \.self) { i in
+                                Image(systemName: i <= selfRating ? "star.fill" : "star")
+                                    .foregroundColor(i <= selfRating ? .orange : .gray)
+                                    .onTapGesture { selfRating = i }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding().background(Color(.systemBackground)).cornerRadius(15).shadow(radius: 2)
+        .padding(.horizontal)
+    }
+}
+
+// MARK: - 6. カレンダー画面 (目標チェック廃止・サマリー更新)
 struct CalendarView: View {
     @ObservedObject var dataManager: AppDataManager
     @Binding var selectedTab: Int
@@ -227,14 +325,22 @@ struct CalendarView: View {
     
     var body: some View {
         let monthData = dataManager.getMonthData(for: calendarDisplayDate)
+        let weeklyRate = dataManager.calculateWeeklyCompositeRate(for: Date()) // 簡易的に今日基準
+        let monthlyRate = dataManager.calculateMonthlyCompositeRate(for: Date())
+        
         NavigationView {
             ScrollView {
                 VStack(spacing: 15) {
+                    HStack(spacing: 15) {
+                        SummaryCard(title: "週の達成度", rate: weeklyRate, color: .orange)
+                        SummaryCard(title: "月の達成度", rate: monthlyRate, color: .blue)
+                    }.padding(.horizontal)
+
                     HStack {
                         Button(action: { changeMonth(-1) }) { Image(systemName: "chevron.left") }
                         Spacer(); Text(monthString(calendarDisplayDate)).font(.headline); Spacer()
                         Button(action: { changeMonth(1) }) { Image(systemName: "chevron.right") }
-                    }.padding()
+                    }.padding(.horizontal)
 
                     VStack(spacing: 10) {
                         GoalListSection(title: "🏆 今月の目標", goals: monthData.monthlyGoals) { updateGoals($0, field: .monthly) }
@@ -242,7 +348,7 @@ struct CalendarView: View {
                         GoalListSection(title: "🎯 日次のルーチン", goals: monthData.dailyGoals) { updateGoals($0, field: .daily) }
                     }.padding(.horizontal)
 
-                    CalendarGridView(displayDate: calendarDisplayDate, selectedDate: $dataManager.selectedDate, selectedTab: $selectedTab)
+                    CalendarGridView(dataManager: dataManager, displayDate: calendarDisplayDate, selectedDate: $dataManager.selectedDate, selectedTab: $selectedTab)
                 }
             }.navigationTitle("カレンダー")
         }
@@ -252,85 +358,30 @@ struct CalendarView: View {
     func monthString(_ date: Date) -> String { let f = DateFormatter(); f.dateFormat = "yyyy年 M月"; return f.string(from: date) }
     
     enum Field { case monthly, weekly, daily }
-    func updateGoals(_ newGoals: [String], field: Field) {
+    func updateGoals(_ newGoals: [Goal], field: Field) {
         var data = dataManager.getMonthData(for: calendarDisplayDate)
         switch field { case .monthly: data.monthlyGoals = newGoals; case .weekly: data.weeklyGoals = newGoals; case .daily: data.dailyGoals = newGoals }
         dataManager.saveMonthData(data, for: calendarDisplayDate)
     }
 }
 
-// MARK: - 共通補助パーツ
-
-struct BulletInputSection: View {
-    let title: String
-    var items: [String]
-    var onUpdate: ([String]) -> Void
-    @State private var tempItem = ""
-    @State private var showAddAlert = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title).font(.caption).foregroundColor(.gray)
-                Spacer()
-                Button(action: { showAddAlert = true }) {
-                    Image(systemName: "plus.circle.fill").foregroundColor(.blue)
-                }
-            }
-            ForEach(items.indices, id: \.self) { i in
-                HStack {
-                    Text("・").foregroundColor(.blue)
-                    Text(items[i]).font(.body)
-                    Spacer()
-                    Button(action: {
-                        var new = items
-                        new.remove(at: i)
-                        onUpdate(new)
-                    }) { Image(systemName: "xmark.circle").foregroundColor(.gray) }
-                }
-            }
-        }
-        .padding(.vertical, 5)
-        .alert("Tryを追加", isPresented: $showAddAlert) {
-            TextField("次の日のタスクになります", text: $tempItem)
-            Button("キャンセル", role: .cancel) { tempItem = "" }
-            Button("追加") {
-                if !tempItem.isEmpty {
-                    var new = items
-                    new.append(tempItem)
-                    onUpdate(new)
-                    tempItem = ""
-                }
-            }
-        }
-    }
-}
-
+// MARK: - カレンダー用目標リスト (チェック不可)
 struct GoalListSection: View {
-    let title: String
-    var goals: [String]
-    var onUpdate: ([String]) -> Void
-    @State private var tempGoal = ""
-    @State private var showAddAlert = false
-
+    let title: String; var goals: [Goal]; var onUpdate: ([Goal]) -> Void
+    @State private var tempGoal = ""; @State private var showAddAlert = false
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack {
                 Text(title).font(.caption).bold().foregroundColor(.blue)
                 Spacer()
-                Button(action: { showAddAlert = true }) {
-                    Image(systemName: "plus").font(.system(size: 14, weight: .bold)).foregroundColor(.blue)
-                }
+                Button(action: { showAddAlert = true }) { Image(systemName: "plus").font(.system(size: 14, weight: .bold)) }
             }
             ForEach(goals.indices, id: \.self) { i in
                 HStack {
-                    Text("・" + goals[i]).font(.subheadline)
+                    Text("・").foregroundColor(.blue)
+                    Text(goals[i].title).font(.subheadline)
                     Spacer()
-                    Button(action: {
-                        var new = goals
-                        new.remove(at: i)
-                        onUpdate(new)
-                    }) { Image(systemName: "xmark.circle").foregroundColor(.gray) }
+                    Button(action: { var new = goals; new.remove(at: i); onUpdate(new) }) { Image(systemName: "xmark.circle").foregroundColor(.gray) }
                 }
             }
         }
@@ -338,19 +389,33 @@ struct GoalListSection: View {
         .alert("目標を追加", isPresented: $showAddAlert) {
             TextField("新しい目標", text: $tempGoal)
             Button("キャンセル", role: .cancel) { tempGoal = "" }
-            Button("追加") {
-                if !tempGoal.isEmpty {
-                    var new = goals
-                    new.append(tempGoal)
-                    onUpdate(new)
-                    tempGoal = ""
-                }
-            }
+            Button("追加") { if !tempGoal.isEmpty { var new = goals; new.append(Goal(title: tempGoal)); onUpdate(new); tempGoal = "" } }
         }
     }
 }
 
+// MARK: - その他の補助コンポーネント (再掲)
+
+struct SummaryCard: View {
+    let title: String; let rate: Double; let color: Color
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(title).font(.caption).foregroundColor(.secondary)
+            HStack {
+                Text("\(Int(rate * 100))%").font(.title2).bold().foregroundColor(color)
+                Spacer()
+                ZStack {
+                    Circle().stroke(color.opacity(0.2), lineWidth: 4)
+                    Circle().trim(from: 0, to: rate).stroke(color, lineWidth: 4).rotationEffect(.degrees(-90))
+                }.frame(width: 30, height: 30)
+            }
+        }
+        .padding().background(Color(.systemBackground)).cornerRadius(12).shadow(color: Color.black.opacity(0.05), radius: 5)
+    }
+}
+
 struct CalendarGridView: View {
+    @ObservedObject var dataManager: AppDataManager
     let displayDate: Date
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
@@ -358,20 +423,47 @@ struct CalendarGridView: View {
 
     var body: some View {
         let days = generateDays()
+        let today = Calendar.current.startOfDay(for: Date())
+        
         LazyVGrid(columns: columns, spacing: 8) {
             ForEach(0..<days.count, id: \.self) { i in
                 if let date = days[i] {
                     let isSelected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
+                    let isFuture = date > today
+                    
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(isSelected ? Color.blue : Color.green.opacity(0.2))
+                        .fill(isSelected ? Color.blue : (isFuture ? Color(.systemGray6) : getHeatmapColor(for: date)))
                         .aspectRatio(1, contentMode: .fit)
-                        .overlay(Text("\(Calendar.current.component(.day, from: date))").font(.caption).foregroundColor(isSelected ? .white : .primary))
-                        .onTapGesture { selectedDate = date; selectedTab = 0 }
+                        .overlay(
+                            Text("\(Calendar.current.component(.day, from: date))")
+                                .font(.caption)
+                                .foregroundColor(isFuture ? .gray : (isSelected || shouldTextBeWhite(for: date) ? .white : .primary))
+                        )
+                        .onTapGesture {
+                            if !isFuture {
+                                selectedDate = date
+                                selectedTab = 0
+                            }
+                        }
                 } else { Color.clear }
             }
-        }
-        .padding()
+        }.padding()
     }
+    
+    private func getHeatmapColor(for date: Date) -> Color {
+        let rate = dataManager.getDailyCompletionRate(for: date)
+        if rate == 0 { return dataManager.getNote(for: date).tasks.isEmpty ? Color(.systemGray6) : Color.green.opacity(0.1) }
+        switch rate {
+        case ..<0.25: return Color.green.opacity(0.25)
+        case 0.25..<0.5: return Color.green.opacity(0.5)
+        case 0.5..<0.75: return Color.green.opacity(0.7)
+        case 0.75..<1.0: return Color.green.opacity(0.85)
+        case 1.0: return Color.green
+        default: return Color(.systemGray6)
+        }
+    }
+    
+    private func shouldTextBeWhite(for date: Date) -> Bool { dataManager.getDailyCompletionRate(for: date) >= 0.75 }
     
     func generateDays() -> [Date?] {
         let cal = Calendar.current
@@ -384,14 +476,38 @@ struct CalendarGridView: View {
     }
 }
 
+struct BulletInputSection: View {
+    let title: String; var items: [String]; var onUpdate: ([String]) -> Void
+    @State private var tempItem = ""; @State private var showAddAlert = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack { Text(title).font(.caption).foregroundColor(.gray); Spacer()
+                Button(action: { showAddAlert = true }) { Image(systemName: "plus.circle.fill") }
+            }
+            ForEach(items.indices, id: \.self) { i in
+                HStack { Text("・").foregroundColor(.blue); Text(items[i]).font(.body); Spacer()
+                    Button(action: { var new = items; new.remove(at: i); onUpdate(new) }) { Image(systemName: "xmark.circle").foregroundColor(.gray) }
+                }
+            }
+        }
+        .alert("Tryを追加", isPresented: $showAddAlert) {
+            TextField("タスク名", text: $tempItem)
+            Button("追加") { if !tempItem.isEmpty { var new = items; new.append(tempItem); onUpdate(new); tempItem = "" } }
+            Button("キャンセル", role: .cancel) { tempItem = "" }
+        }
+    }
+}
+
 struct TextEditorView: View {
-    let title: String
-    @Binding var text: String
-    var minHeight: CGFloat = 60
+    let title: String; @Binding var text: String; var minHeight: CGFloat = 60
     var body: some View {
         VStack(alignment: .leading) {
             Text(title).font(.caption).foregroundColor(.gray)
             TextEditor(text: $text).frame(minHeight: minHeight)
         }
     }
+}
+
+#Preview {
+    ContentView()
 }
