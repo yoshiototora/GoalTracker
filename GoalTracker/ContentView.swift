@@ -43,10 +43,35 @@ struct WeekData: Codable {
     var reflection: String = ""
 }
 
+// 🌟 月次データに「週次目標のテンプレート」を追加
 struct MonthData: Codable {
     var monthlyGoals: [Goal] = []
+    var weeklyGoals: [Goal] = [] // 追加
     var dailyGoals: [Goal] = []
     var reflection: String = ""
+    
+    enum CodingKeys: String, CodingKey {
+        case monthlyGoals, weeklyGoals, dailyGoals, reflection
+    }
+    
+    init() {}
+    
+    // 古いデータでもエラーなく読み込めるための互換性対応
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        monthlyGoals = try container.decodeIfPresent([Goal].self, forKey: .monthlyGoals) ?? []
+        weeklyGoals = try container.decodeIfPresent([Goal].self, forKey: .weeklyGoals) ?? []
+        dailyGoals = try container.decodeIfPresent([Goal].self, forKey: .dailyGoals) ?? []
+        reflection = try container.decodeIfPresent(String.self, forKey: .reflection) ?? ""
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(monthlyGoals, forKey: .monthlyGoals)
+        try container.encode(weeklyGoals, forKey: .weeklyGoals)
+        try container.encode(dailyGoals, forKey: .dailyGoals)
+        try container.encode(reflection, forKey: .reflection)
+    }
 }
 
 struct Task: Identifiable, Equatable, Codable {
@@ -217,6 +242,13 @@ class AppDataManager: ObservableObject {
         }
     }
 
+    // 🌟 全ての同期（日次と週次）をまとめた関数
+    func syncAll(for date: Date) {
+        syncGoalsToTasks(for: date)
+        syncWeeklyGoals(for: date)
+    }
+
+    // 日次タスクへの同期
     func syncGoalsToTasks(for date: Date) {
         var note = getNote(for: date); let monthData = getMonthData(for: date); var addedAny = false
         for goal in monthData.dailyGoals {
@@ -231,6 +263,20 @@ class AppDataManager: ObservableObject {
             }
         }
         if addedAny { saveNote(note, for: date) }
+    }
+    
+    // 🌟 週次目標への同期
+    func syncWeeklyGoals(for date: Date) {
+        var weekData = getWeekData(for: date)
+        let monthData = getMonthData(for: date)
+        var addedAny = false
+        for goal in monthData.weeklyGoals {
+            if !weekData.goals.contains(where: { $0.title == goal.title }) {
+                weekData.goals.append(Goal(title: goal.title))
+                addedAny = true
+            }
+        }
+        if addedAny { saveWeekData(weekData, for: date) }
     }
 
     func getDailyTitle(for date: Date) -> String {
@@ -275,7 +321,7 @@ struct HomeView: View {
             VStack {
                 Text(dataManager.dateKey(dataManager.selectedDate)).font(.caption).foregroundColor(.gray)
                 HStack {
-                    TextField("新しいタスク...", text: $newTaskTitle).textFieldStyle(RoundedBorderTextFieldStyle())
+                    TextField("新しい目標を追加", text: $newTaskTitle).textFieldStyle(RoundedBorderTextFieldStyle())
                     Button(action: {
                         var note = currentNote
                         if !newTaskTitle.isEmpty { note.tasks.append(Task(title: newTaskTitle)); dataManager.saveNote(note, for: dataManager.selectedDate); newTaskTitle = "" }
@@ -296,9 +342,9 @@ struct HomeView: View {
                         }
                     }
                 }
-            }.navigationTitle("今日のタスク").id(dataManager.selectedDate)
-            .onAppear { dataManager.syncGoalsToTasks(for: dataManager.selectedDate) }
-            .onChange(of: dataManager.selectedDate) { _, newDate in dataManager.syncGoalsToTasks(for: newDate) }
+            }.navigationTitle("今日の目標").id(dataManager.selectedDate)
+            .onAppear { dataManager.syncAll(for: dataManager.selectedDate) }
+            .onChange(of: dataManager.selectedDate) { _, newDate in dataManager.syncAll(for: newDate) }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) { Button(action: { showResetAlert = true }) { Image(systemName: "trash").foregroundColor(.red) } }
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { hideKeyboard() } }
@@ -363,10 +409,10 @@ struct ReflectionView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 GoalListSection(title: "🎯 今週の目標チェック", goals: weekData.goals, showCheckboxes: true, onUpdate: { var d = weekData; d.goals = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) })
                                 if isSunday {
-                                    TextEditorView(title: "今週のまとめ", text: Binding(get: { weekData.reflection }, set: { var d = weekData; d.reflection = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) }), minHeight: 120)
+                                    TextEditorView(title: "今週の振り返り", text: Binding(get: { weekData.reflection }, set: { var d = weekData; d.reflection = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) }), minHeight: 120)
                                 } else {
                                     VStack(alignment: .leading) {
-                                        Text("今週のまとめ (※編集は週の最終日のみ)").font(.caption).foregroundColor(.gray)
+                                        Text("今週の振り返り (※編集は週の最終日のみ)").font(.caption).foregroundColor(.gray)
                                         Text(weekData.reflection.isEmpty ? "未記入" : weekData.reflection).padding(8).frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading).background(Color(.systemGray6)).cornerRadius(8)
                                     }.padding(.vertical, 4)
                                 }
@@ -375,10 +421,10 @@ struct ReflectionView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 GoalListSection(title: "🏆 今月の目標チェック", goals: monthData.monthlyGoals, showCheckboxes: true, onUpdate: { var d = monthData; d.monthlyGoals = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) })
                                 if isLastDayOfMonth {
-                                    TextEditorView(title: "今月のまとめ", text: Binding(get: { monthData.reflection }, set: { var d = monthData; d.reflection = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) }), minHeight: 120)
+                                    TextEditorView(title: "今月の振り返り", text: Binding(get: { monthData.reflection }, set: { var d = monthData; d.reflection = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) }), minHeight: 120)
                                 } else {
                                     VStack(alignment: .leading) {
-                                        Text("今月のまとめ (※編集は月末のみ)").font(.caption).foregroundColor(.gray)
+                                        Text("今月の振り返り (※編集は月末のみ)").font(.caption).foregroundColor(.gray)
                                         Text(monthData.reflection.isEmpty ? "未記入" : monthData.reflection).padding(8).frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading).background(Color(.systemGray6)).cornerRadius(8)
                                     }.padding(.vertical, 4)
                                 }
@@ -388,6 +434,7 @@ struct ReflectionView: View {
                 }
             }
             .navigationTitle("振り返り")
+            .onAppear { dataManager.syncAll(for: dataManager.selectedDate) }
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { hideKeyboard() } }
             }
@@ -404,25 +451,23 @@ struct CalendarView: View {
     @State private var calendarDisplayDate = Date()
     var body: some View {
         let monthData = dataManager.getMonthData(for: calendarDisplayDate)
-        let weekData = dataManager.getWeekData(for: dataManager.selectedDate)
         NavigationView {
             ScrollView {
                 VStack(spacing: 15) {
                     HStack(spacing: 10) {
-                        // 🌟 ここに具体的な日付（例：4/1 〜 4/5の達成度）が表示されるようになります
                         CompositeSummaryCard(title: "\(dataManager.getWeeklyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getWeeklyDailyAvgRate(for: dataManager.selectedDate), rate2: dataManager.getWeeklyGoalRate(for: dataManager.selectedDate), rate3: nil, color2: .orange, color3: .clear)
                         CompositeSummaryCard(title: "\(monthString(calendarDisplayDate))の達成度", rate1: dataManager.getMonthlyDailyAvgRate(for: calendarDisplayDate), rate2: dataManager.getMonthlyWeeklyGoalAvgRate(for: calendarDisplayDate), rate3: dataManager.getMonthlyGoalRate(for: calendarDisplayDate), color2: .orange, color3: .blue)
                     }.padding(.horizontal)
 
+                    // 🌟 カレンダー画面の目標はすべて「MonthData（その月のテンプレート）」に保存されます
                     VStack(spacing: 10) {
-                        GoalListSection(title: "🏆 \(monthString(calendarDisplayDate))の目標", goals: monthData.monthlyGoals, showCheckboxes: false, onUpdate: { var d = monthData; d.monthlyGoals = $0; dataManager.saveMonthData(d, for: calendarDisplayDate) }) {
+                        GoalListSection(title: "🏆 \(monthString(calendarDisplayDate))の月次目標", goals: monthData.monthlyGoals, showCheckboxes: false, onUpdate: { var d = monthData; d.monthlyGoals = $0; dataManager.saveMonthData(d, for: calendarDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
                             copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate)!).monthlyGoals, field: .monthly)
                         }
-                        // 🌟 ここも具体的な日付に変更
-                        GoalListSection(title: "📅 週次の目標", goals: weekData.goals, showCheckboxes: false, onUpdate: { var d = weekData; d.goals = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) }) {
-                            copyPrev(prev: dataManager.getWeekData(for: Calendar.current.date(byAdding: .day, value: -7, to: dataManager.selectedDate)!).goals, field: .weekly)
+                        GoalListSection(title: "📅 \(monthString(calendarDisplayDate))の週次目標", goals: monthData.weeklyGoals, showCheckboxes: false, onUpdate: { var d = monthData; d.weeklyGoals = $0; dataManager.saveMonthData(d, for: calendarDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
+                            copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate)!).weeklyGoals, field: .weekly)
                         }
-                        GoalListSection(title: "🎯 日次の目標", goals: monthData.dailyGoals, showCheckboxes: false, onUpdate: { var d = monthData; d.dailyGoals = $0; dataManager.saveMonthData(d, for: calendarDisplayDate) }) {
+                        GoalListSection(title: "🎯 \(monthString(calendarDisplayDate))の日次目標", goals: monthData.dailyGoals, showCheckboxes: false, onUpdate: { var d = monthData; d.dailyGoals = $0; dataManager.saveMonthData(d, for: calendarDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
                             copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate)!).dailyGoals, field: .daily)
                         }
                     }.padding(.horizontal)
@@ -444,18 +489,23 @@ struct CalendarView: View {
     }
     func monthString(_ d: Date) -> String { let f = DateFormatter(); f.dateFormat = "yyyy年 M月"; return f.string(from: d) }
     enum F { case monthly, weekly, daily }
+    
+    // 🌟 コピー機能も「先月のテンプレート」から引っ張ってくる仕様に変更
     func copyPrev(prev: [Goal], field: F) {
         var curr: [Goal]
         switch field {
         case .monthly: curr = dataManager.getMonthData(for: calendarDisplayDate).monthlyGoals
-        case .weekly: curr = dataManager.getWeekData(for: dataManager.selectedDate).goals
+        case .weekly: curr = dataManager.getMonthData(for: calendarDisplayDate).weeklyGoals
         case .daily: curr = dataManager.getMonthData(for: calendarDisplayDate).dailyGoals
         }
         let titles = curr.map { $0.title }
         var new = curr; for g in prev { if !titles.contains(g.title) { new.append(Goal(title: g.title)) } }
-        if field == .monthly { var d = dataManager.getMonthData(for: calendarDisplayDate); d.monthlyGoals = new; dataManager.saveMonthData(d, for: calendarDisplayDate) }
-        else if field == .weekly { var d = dataManager.getWeekData(for: dataManager.selectedDate); d.goals = new; dataManager.saveWeekData(d, for: dataManager.selectedDate) }
-        else { var d = dataManager.getMonthData(for: calendarDisplayDate); d.dailyGoals = new; dataManager.saveMonthData(d, for: calendarDisplayDate) }
+        var d = dataManager.getMonthData(for: calendarDisplayDate)
+        if field == .monthly { d.monthlyGoals = new }
+        else if field == .weekly { d.weeklyGoals = new }
+        else { d.dailyGoals = new }
+        dataManager.saveMonthData(d, for: calendarDisplayDate)
+        dataManager.syncAll(for: dataManager.selectedDate)
     }
 }
 
@@ -490,9 +540,9 @@ struct ReflectionAchievementCard: View {
             HStack {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("\(Int(total * 100))%").font(.system(size: 40, weight: .bold, design: .rounded))
-                    HStack(spacing: 6) { Circle().fill(Color.green).frame(width: 10, height: 10); Text("日次タスク: \(Int(rate1 * 100))%").font(.caption).foregroundColor(.gray) }
-                    if let r2 = rate2 { HStack(spacing: 6) { Circle().fill(color2).frame(width: 10, height: 10); Text("週の目標: \(Int(r2 * 100))%").font(.caption).foregroundColor(.gray) } }
-                    if let r3 = rate3 { HStack(spacing: 6) { Circle().fill(color3).frame(width: 10, height: 10); Text("月の目標: \(Int(r3 * 100))%").font(.caption).foregroundColor(.gray) } }
+                    HStack(spacing: 6) { Circle().fill(Color.green).frame(width: 10, height: 10); Text("日次: \(Int(rate1 * 100))%").font(.caption).foregroundColor(.gray) }
+                    if let r2 = rate2 { HStack(spacing: 6) { Circle().fill(color2).frame(width: 10, height: 10); Text("週次: \(Int(r2 * 100))%").font(.caption).foregroundColor(.gray) } }
+                    if let r3 = rate3 { HStack(spacing: 6) { Circle().fill(color3).frame(width: 10, height: 10); Text("月次: \(Int(r3 * 100))%").font(.caption).foregroundColor(.gray) } }
                 }
                 Spacer()
                 ZStack {
