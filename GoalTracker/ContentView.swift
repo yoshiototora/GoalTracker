@@ -227,9 +227,11 @@ class AppDataManager: ObservableObject {
         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             if granted {
                 DispatchQueue.main.async {
-                    center.removeAllPendingNotificationRequests()
+                    // 🌟 修正: すべての通知ではなく、指定したIDの通知のみ削除（安全化）
+                    center.removePendingNotificationRequests(withIdentifiers: ["GoalNotification", "ReflectionNotification"])
+                    
                     if self.appSettings.goalNotificationEnabled {
-                        let content = UNMutableNotificationContent(); content.title = "🎯 今日の目標"; content.body = "今日のタスクを確認しましょう！"; content.sound = .default
+                        let content = UNMutableNotificationContent(); content.title = "🟢 今日の目標"; content.body = "今日のタスクを確認しましょう！"; content.sound = .default
                         let comps = Calendar.current.dateComponents([.hour, .minute], from: self.appSettings.goalNotificationTime)
                         center.add(UNNotificationRequest(identifier: "GoalNotification", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)))
                     }
@@ -300,7 +302,10 @@ struct ContentView: View {
             ReflectionView(dataManager: dataManager).tabItem { Image(systemName: "square.and.pencil"); Text("振り返り") }.tag(1)
             CalendarView(dataManager: dataManager, selectedTab: $selectedTab).tabItem { Image(systemName: "calendar"); Text("カレンダー") }.tag(2)
             SettingsView(dataManager: dataManager).tabItem { Image(systemName: "gearshape"); Text("設定") }.tag(3)
-        }.onTapGesture { hideKeyboard() }
+        }
+        // 🌟 修正: 透明な部分でもタップ判定を有効化し、確実にキーボードを閉じる
+        .contentShape(Rectangle())
+        .onTapGesture { hideKeyboard() }
     }
 }
 
@@ -330,7 +335,6 @@ struct HomeView: View {
                             HStack {
                                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle").foregroundColor(task.isCompleted ? .green : .gray)
                                 
-                                // 🌟 プレフィックスに応じてアイコンを表示
                                 if task.title.hasPrefix("日次: ") {
                                     Image(systemName: "circle.fill").foregroundColor(.green).font(.system(size: 10))
                                     Text(task.title.replacingOccurrences(of: "日次: ", with: "")).strikethrough(task.isCompleted)
@@ -458,6 +462,11 @@ struct CalendarView: View {
     @ObservedObject var dataManager: AppDataManager
     @Binding var selectedTab: Int
     @State private var calendarDisplayDate = Date()
+    
+    // 🌟 改善点: Formatterもキャッシュ化
+    private static let monthFormatter: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy年 M月"; return f }()
+    func monthString(_ d: Date) -> String { return Self.monthFormatter.string(from: d) }
+    
     var body: some View {
         let monthData = dataManager.getMonthData(for: calendarDisplayDate)
         NavigationView {
@@ -495,7 +504,7 @@ struct CalendarView: View {
             }
         }
     }
-    func monthString(_ d: Date) -> String { let f = DateFormatter(); f.dateFormat = "yyyy年 M月"; return f.string(from: d) }
+    
     enum F { case monthly, weekly, daily }
     
     func copyPrev(prev: [Goal], field: F) {
@@ -598,14 +607,12 @@ struct CompositeSummaryCard: View {
     }
 }
 
-// 🌟 改善点: アイコンの色を引数で受け取るようにし、シンプルな丸いアイコンを表示
 struct GoalListSection: View {
     let title: String; let iconColor: Color; var goals: [Goal]; var showCheckboxes: Bool; var onUpdate: ([Goal]) -> Void; var onCopy: (() -> Void)? = nil
     @State private var temp = ""; @State private var show = false
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack {
-                // 🌟 タイトルの前に色付きの丸を表示
                 Image(systemName: "circle.fill").foregroundColor(iconColor).font(.system(size: 10))
                 Text(title).font(.caption).bold().foregroundColor(.primary)
                 Spacer()
@@ -666,7 +673,10 @@ struct CalendarGridView: View {
     func getCol(_ d: Date) -> Color {
         let r = rate(d)
         let note = dataManager.getNote(for: d)
-        let hasReflection = !note.keep.isEmpty || !note.problem.isEmpty || !note.tryList.isEmpty
+        
+        // 🌟 修正: tryListが空文字だけの場合はReflectionと判定しない
+        let hasReflection = !note.keep.isEmpty || !note.problem.isEmpty || note.tryList.contains { !$0.isEmpty }
+        
         if r == 0 && !hasReflection { return Color(.systemGray6) }
         if r == 0 { return Color.green.opacity(0.1) }
         switch r {
