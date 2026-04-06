@@ -114,28 +114,100 @@ struct GoalListSection: View {
     }
 }
 
-struct BulletInputSection: View {
-    let title: String; var items: [String]; var onUpdate: ([String]) -> Void
-    @State private var t = ""; @State private var s = false
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack { Text(title).font(.caption).foregroundColor(.gray); Spacer(); Button(action: { s = true }) { Image(systemName: "plus.circle.fill") } }
-            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                HStack { Text("・").foregroundColor(.blue); Text(item).font(.body); Spacer(); Button(action: { var n = items; n.remove(at: index); onUpdate(n) }) { Image(systemName: "xmark.circle").foregroundColor(.gray) } }
-            }
-        }.alert("Try追加", isPresented: $s) {
-            TextField("...", text: $t); Button("追加") { if !t.isEmpty { var n = items; n.append(t); onUpdate(n); t = "" } }; Button("キャンセル", role: .cancel) { t = "" }
-        }
-    }
-}
-
+// 🌟 修正1：TextEditorViewに placeholder を追加
 struct TextEditorView: View {
     let title: String; @Binding var text: String; var minHeight: CGFloat = 60
+    var placeholder: String = "入力..." // 👈 デフォルト値を追加
+    
     var body: some View {
         VStack(alignment: .leading) {
             Text(title).font(.caption).foregroundColor(.gray)
-            TextField("入力...", text: $text, axis: .vertical).lineLimit(4...15).padding(8).background(Color(.systemGray6)).cornerRadius(8).frame(minHeight: minHeight, alignment: .top)
+            // 👈 "入力..." の代わりに placeholder 変数を使用するように変更
+            TextField(placeholder, text: $text, axis: .vertical).lineLimit(4...15).padding(8).background(Color(.systemGray6)).cornerRadius(8).frame(minHeight: minHeight, alignment: .top)
         }.padding(.vertical, 4)
+    }
+}
+
+struct BulletInputSection: View {
+    let title: String
+    var items: [String]
+    var placeholder: String = "..."
+    var onUpdate: ([String]) -> Void
+    
+    @State private var t = ""
+    @State private var s = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // 🌟 タイトルと＋ボタン
+            HStack {
+                Text(title).font(.caption).foregroundColor(.gray)
+                Spacer()
+                Button(action: { s = true }) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.blue)
+                }
+            }
+            
+            // 🌟 追加されたTryを1つのグレーの四角の中にまとめて表示
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                    HStack(alignment: .top, spacing: 4) {
+                        Text("・")
+                            .font(.body)
+                            .foregroundColor(.blue)
+                        
+                        Text(item)
+                            .font(.body)
+                        
+                        Spacer()
+                        
+                        // 削除ボタン
+                        Button(action: {
+                            var n = items
+                            n.remove(at: index)
+                            onUpdate(n)
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(Color.gray.opacity(0.5))
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                }
+                
+                // 🌟 Tryが空のときはプレースホルダーを表示
+                if items.isEmpty {
+                    Text(placeholder)
+                        .font(.body)
+                        .foregroundColor(.gray)
+                        .padding(12)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+            // 👇 追加：透明な余白部分も含めてタップを検知させるおまじない
+            .contentShape(Rectangle())
+            // 👇 追加：グレーの箱全体をタップした時も入力アラートを出す
+            .onTapGesture {
+                s = true
+            }
+        }
+        // 🌟 ポップアップ（アラート）での入力画面
+        .alert("\(title)を追加", isPresented: $s) {
+            TextField(placeholder, text: $t)
+            Button("追加") {
+                if !t.isEmpty {
+                    var n = items
+                    n.append(t)
+                    onUpdate(n)
+                    t = ""
+                }
+            }
+            Button("キャンセル", role: .cancel) { t = "" }
+        }
     }
 }
 

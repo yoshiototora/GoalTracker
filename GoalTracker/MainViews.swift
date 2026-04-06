@@ -93,71 +93,84 @@ struct ReflectionView: View {
         let nextMonthData = dataManager.getMonthData(for: nextMonthDate)
         
         NavigationView {
-            VStack {
+            VStack(spacing: 0) { // 🌟 Pickerと下のスワイプ画面の隙間をなくす
+                
+                // 🌟 上部の切り替えボタン（スワイプと連動します）
                 Picker("振り返り", selection: $reflectionType) {
                     Text("日次").tag(0)
                     if isSunday { Text("週次").tag(1) }
                     if isLastDayOfMonth { Text("月次").tag(2) }
                 }
-                .pickerStyle(SegmentedPickerStyle()).padding()
+                .pickerStyle(SegmentedPickerStyle())
+                .padding()
                 .onChange(of: dataManager.selectedDate) { _, _ in
                     if reflectionType == 1 && !isSunday { reflectionType = 0 }
                     if reflectionType == 2 && !isLastDayOfMonth { reflectionType = 0 }
                 }
                 
-                if reflectionType == 0 {
-                    ReflectionAchievementCard(title: "\(dataManager.getDailyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getDailyCompletionRate(for: dataManager.selectedDate), rate2: nil, rate3: nil, color2: .clear, color3: .clear)
-                } else if reflectionType == 1 {
-                    ReflectionAchievementCard(title: "\(dataManager.getWeeklyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getWeeklyDailyAvgRate(for: dataManager.selectedDate), rate2: dataManager.getWeeklyGoalRate(for: dataManager.selectedDate), rate3: nil, color2: .orange, color3: .clear)
-                } else {
-                    ReflectionAchievementCard(title: "\(dataManager.getMonthlyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getMonthlyDailyAvgRate(for: dataManager.selectedDate), rate2: dataManager.getMonthlyWeeklyGoalAvgRate(for: dataManager.selectedDate), rate3: dataManager.getMonthlyGoalRate(for: dataManager.selectedDate), color2: .orange, color3: .blue)
-                }
-
-                ScrollView {
-                    VStack(spacing: 15) {
-                        if reflectionType == 0 {
+                // 🌟 TabViewを使って横スワイプを実現！
+                TabView(selection: $reflectionType) {
+                    
+                    // --- 📌 1ページ目：日次の振り返り (Tag: 0) ---
+                    ScrollView {
+                        VStack(spacing: 15) {
+                            ReflectionAchievementCard(title: "\(dataManager.getDailyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getDailyCompletionRate(for: dataManager.selectedDate), rate2: nil, rate3: nil, color2: .clear, color3: .clear)
+                            
                             VStack(alignment: .leading, spacing: 10) {
-                                TextEditorView(title: "Keep", text: Binding(get: { note.keep }, set: { updateNote($0, f: .keep) }))
-                                TextEditorView(title: "Problem", text: Binding(get: { note.problem }, set: { updateNote($0, f: .problem) }))
-                                BulletInputSection(title: "Try", items: note.tryList) { newList in var n = dataManager.getNote(for: dataManager.selectedDate); n.tryList = newList; dataManager.saveNote(n, for: dataManager.selectedDate) }
+                                TextEditorView(title: "Keep", text: Binding(get: { note.keep }, set: { updateNote($0, f: .keep) }), placeholder: "できたこと、継続したいこと")
+                                TextEditorView(title: "Problem", text: Binding(get: { note.problem }, set: { updateNote($0, f: .problem) }), placeholder: "できなかったこと")
+                                BulletInputSection(title: "Try", items: note.tryList, placeholder: "明日どうするか、どう改善するか") { newList in var n = dataManager.getNote(for: dataManager.selectedDate); n.tryList = newList; dataManager.saveNote(n, for: dataManager.selectedDate) }
                             }.padding(.horizontal)
-                        } else if reflectionType == 1 {
-                            VStack(alignment: .leading, spacing: 10) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("🏆 今週の達成記録").font(.caption).bold().foregroundColor(.primary)
-                                    HStack {
-                                        StatBox(title: "完了タスク", value: "\(dataManager.getCompletedTasksCount(for: dataManager.selectedDate, isWeekly: true))個", color: .green)
-                                        StatBox(title: "Try実行", value: "\(dataManager.getTryExecutionCount(for: dataManager.selectedDate, isWeekly: true))回", color: .red)
-                                    }
-                                    let compText = dataManager.getComparisonText(for: dataManager.selectedDate, isWeekly: true)
-                                    Text(compText).font(.caption).bold().foregroundColor(compText.contains("アップ") ? .orange : .gray).padding(.top, 4)
-                                }
+                        }.padding(.vertical)
+                    }
+                    .tag(0) // 👈 これがPickerの .tag(0) と紐づきます
+                    
+                    // --- 📌 2ページ目：週次の振り返り (Tag: 1) ※日曜のみ表示 ---
+                    if isSunday {
+                        ScrollView {
+                            VStack(spacing: 15) {
+                                ReflectionAchievementCard(title: "\(dataManager.getWeeklyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getWeeklyDailyAvgRate(for: dataManager.selectedDate), rate2: dataManager.getWeeklyGoalRate(for: dataManager.selectedDate), rate3: nil, color2: .orange, color3: .clear)
                                 
-                                GoalListSection(title: "今週の目標チェック", iconColor: .orange, goals: weekData.goals, showCheckboxes: true, onUpdate: { var d = dataManager.getWeekData(for: dataManager.selectedDate); d.goals = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) })
-                                if isSunday {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("🏆 今週の達成記録").font(.caption).bold().foregroundColor(.primary)
+                                        HStack {
+                                            StatBox(title: "完了タスク", value: "\(dataManager.getCompletedTasksCount(for: dataManager.selectedDate, isWeekly: true))個", color: .green)
+                                            StatBox(title: "Try実行", value: "\(dataManager.getTryExecutionCount(for: dataManager.selectedDate, isWeekly: true))回", color: .red)
+                                        }
+                                        let compText = dataManager.getComparisonText(for: dataManager.selectedDate, isWeekly: true)
+                                        Text(compText).font(.caption).bold().foregroundColor(compText.contains("アップ") ? .orange : .gray).padding(.top, 4)
+                                    }
+                                    
+                                    GoalListSection(title: "今週の目標チェック", iconColor: .orange, goals: weekData.goals, showCheckboxes: true, onUpdate: { var d = dataManager.getWeekData(for: dataManager.selectedDate); d.goals = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) })
+                                    
                                     TextEditorView(title: "今週の振り返り", text: Binding(get: { weekData.reflection }, set: { var d = weekData; d.reflection = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) }), minHeight: 120)
-                                } else {
-                                    VStack(alignment: .leading) {
-                                        Text("今週の振り返り (※編集は週の最終日のみ)").font(.caption).foregroundColor(.gray)
-                                        Text(weekData.reflection.isEmpty ? "未記入" : weekData.reflection).padding(8).frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading).background(Color(.systemGray6)).cornerRadius(8)
-                                    }.padding(.vertical, 4)
-                                }
-                            }.padding(.horizontal)
-                        } else {
-                            VStack(alignment: .leading, spacing: 10) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("🏆 今月の達成記録").font(.caption).bold().foregroundColor(.primary)
-                                    HStack {
-                                        StatBox(title: "完了タスク", value: "\(dataManager.getCompletedTasksCount(for: dataManager.selectedDate, isWeekly: false))個", color: .green)
-                                        StatBox(title: "Try実行", value: "\(dataManager.getTryExecutionCount(for: dataManager.selectedDate, isWeekly: false))回", color: .red)
-                                    }
-                                    let compText = dataManager.getComparisonText(for: dataManager.selectedDate, isWeekly: false)
-                                    Text(compText).font(.caption).bold().foregroundColor(compText.contains("アップ") ? .blue : .gray).padding(.top, 4)
-                                }
-
-                                GoalListSection(title: "今月の目標チェック", iconColor: .blue, goals: monthData.monthlyGoals, showCheckboxes: true, onUpdate: { var d = dataManager.getMonthData(for: dataManager.selectedDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) })
+                                    
+                                }.padding(.horizontal)
+                            }.padding(.vertical)
+                        }
+                        .tag(1) // 👈 Pickerの .tag(1) と紐づきます
+                    }
+                    
+                    // --- 📌 3ページ目：月次の振り返り (Tag: 2) ※月末のみ表示 ---
+                    if isLastDayOfMonth {
+                        ScrollView {
+                            VStack(spacing: 15) {
+                                ReflectionAchievementCard(title: "\(dataManager.getMonthlyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getMonthlyDailyAvgRate(for: dataManager.selectedDate), rate2: dataManager.getMonthlyWeeklyGoalAvgRate(for: dataManager.selectedDate), rate3: dataManager.getMonthlyGoalRate(for: dataManager.selectedDate), color2: .orange, color3: .blue)
                                 
-                                if isLastDayOfMonth {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("🏆 今月の達成記録").font(.caption).bold().foregroundColor(.primary)
+                                        HStack {
+                                            StatBox(title: "完了タスク", value: "\(dataManager.getCompletedTasksCount(for: dataManager.selectedDate, isWeekly: false))個", color: .green)
+                                            StatBox(title: "Try実行", value: "\(dataManager.getTryExecutionCount(for: dataManager.selectedDate, isWeekly: false))回", color: .red)
+                                        }
+                                        let compText = dataManager.getComparisonText(for: dataManager.selectedDate, isWeekly: false)
+                                        Text(compText).font(.caption).bold().foregroundColor(compText.contains("アップ") ? .blue : .gray).padding(.top, 4)
+                                    }
+
+                                    GoalListSection(title: "今月の目標チェック", iconColor: .blue, goals: monthData.monthlyGoals, showCheckboxes: true, onUpdate: { var d = dataManager.getMonthData(for: dataManager.selectedDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) })
+                                    
                                     TextEditorView(title: "今月の振り返り", text: Binding(get: { monthData.reflection }, set: { var d = monthData; d.reflection = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) }), minHeight: 120)
                                     
                                     Divider().padding(.vertical, 8)
@@ -165,16 +178,15 @@ struct ReflectionView: View {
                                     GoalListSection(title: "来月の月次目標を設定", iconColor: .blue, goals: nextMonthData.monthlyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: nextMonthDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: nextMonthDate) })
                                     GoalListSection(title: "来月の週次目標を設定", iconColor: .orange, goals: nextMonthData.weeklyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: nextMonthDate); d.weeklyGoals = $0; dataManager.saveMonthData(d, for: nextMonthDate) })
                                     GoalListSection(title: "来月の日次目標を設定", iconColor: .green, goals: nextMonthData.dailyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: nextMonthDate); d.dailyGoals = $0; dataManager.saveMonthData(d, for: nextMonthDate) })
-                                } else {
-                                    VStack(alignment: .leading) {
-                                        Text("今月の振り返り (※編集は月末のみ)").font(.caption).foregroundColor(.gray)
-                                        Text(monthData.reflection.isEmpty ? "未記入" : monthData.reflection).padding(8).frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading).background(Color(.systemGray6)).cornerRadius(8)
-                                    }.padding(.vertical, 4)
-                                }
-                            }.padding(.horizontal)
+                                    
+                                }.padding(.horizontal)
+                            }.padding(.vertical)
                         }
-                    }.padding(.vertical)
+                        .tag(2) // 👈 Pickerの .tag(2) と紐づきます
+                    }
+                    
                 }
+                .tabViewStyle(.page(indexDisplayMode: .never)) // 🌟 これを追加するだけでスワイプ可能になります！
             }
             .navigationTitle("振り返り")
             .onAppear { dataManager.syncAll(for: dataManager.selectedDate) }
@@ -183,9 +195,11 @@ struct ReflectionView: View {
             }
         }
     }
+    
     enum F { case keep, problem }
     func updateNote(_ t: String, f: F) { var n = dataManager.getNote(for: dataManager.selectedDate); if f == .keep { n.keep = t } else { n.problem = t }; dataManager.saveNote(n, for: dataManager.selectedDate) }
 }
+
 
 struct CalendarView: View {
     @ObservedObject var dataManager: AppDataManager
