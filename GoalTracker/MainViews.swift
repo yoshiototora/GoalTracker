@@ -48,7 +48,8 @@ struct HomeView: View {
                         }
                     }
                 }
-            }.navigationTitle("今日のタスク").id(dataManager.selectedDate)
+            }
+            .navigationTitle("今日のタスク")
             .onAppear { dataManager.syncAll(for: dataManager.selectedDate) }
             .onChange(of: dataManager.selectedDate) { _, newDate in dataManager.syncAll(for: newDate) }
             .toolbar {
@@ -79,7 +80,7 @@ struct ReflectionView: View {
     private var isSunday: Bool { Calendar.current.component(.weekday, from: dataManager.selectedDate) == 1 }
     private var isLastDayOfMonth: Bool {
         let cal = Calendar.current; let date = dataManager.selectedDate
-        let nextDay = cal.date(byAdding: .day, value: 1, to: date)!
+        let nextDay = cal.date(byAdding: .day, value: 1, to: date) ?? date
         return cal.component(.month, from: date) != cal.component(.month, from: nextDay)
     }
     
@@ -88,7 +89,7 @@ struct ReflectionView: View {
         let weekData = dataManager.getWeekData(for: dataManager.selectedDate)
         let monthData = dataManager.getMonthData(for: dataManager.selectedDate)
         
-        let nextMonthDate = Calendar.current.date(byAdding: .month, value: 1, to: dataManager.selectedDate)!
+        let nextMonthDate = Calendar.current.date(byAdding: .month, value: 1, to: dataManager.selectedDate) ?? dataManager.selectedDate
         let nextMonthData = dataManager.getMonthData(for: nextMonthDate)
         
         NavigationView {
@@ -163,7 +164,6 @@ struct ReflectionView: View {
                                     Text("🚀 来月に向けて").font(.subheadline).bold().foregroundColor(.purple)
                                     GoalListSection(title: "来月の月次目標を設定", iconColor: .blue, goals: nextMonthData.monthlyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: nextMonthDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: nextMonthDate) })
                                     GoalListSection(title: "来月の週次目標を設定", iconColor: .orange, goals: nextMonthData.weeklyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: nextMonthDate); d.weeklyGoals = $0; dataManager.saveMonthData(d, for: nextMonthDate) })
-                                    // 🌟 修正: 来月の日次目標設定欄を追加
                                     GoalListSection(title: "来月の日次目標を設定", iconColor: .green, goals: nextMonthData.dailyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: nextMonthDate); d.dailyGoals = $0; dataManager.saveMonthData(d, for: nextMonthDate) })
                                 } else {
                                     VStack(alignment: .leading) {
@@ -203,20 +203,20 @@ struct CalendarView: View {
 
                     VStack(spacing: 10) {
                         GoalListSection(title: "\(dataManager.getMonthlyTitle(for: calendarDisplayDate))の月次目標", iconColor: .blue, goals: monthData.monthlyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: calendarDisplayDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: calendarDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
-                            copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate)!).monthlyGoals, field: .monthly)
+                            copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate) ?? calendarDisplayDate).monthlyGoals, field: .monthly)
                         }
                         GoalListSection(title: "\(dataManager.getMonthlyTitle(for: calendarDisplayDate))の週次目標", iconColor: .orange, goals: monthData.weeklyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: calendarDisplayDate); d.weeklyGoals = $0; dataManager.saveMonthData(d, for: calendarDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
-                            copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate)!).weeklyGoals, field: .weekly)
+                            copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate) ?? calendarDisplayDate).weeklyGoals, field: .weekly)
                         }
                         GoalListSection(title: "\(dataManager.getMonthlyTitle(for: calendarDisplayDate))の日次目標", iconColor: .green, goals: monthData.dailyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: calendarDisplayDate); d.dailyGoals = $0; dataManager.saveMonthData(d, for: calendarDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
-                            copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate)!).dailyGoals, field: .daily)
+                            copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate) ?? calendarDisplayDate).dailyGoals, field: .daily)
                         }
                     }.padding(.horizontal)
 
                     HStack {
-                        Button(action: { calendarDisplayDate = Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate)! }) { Image(systemName: "chevron.left") }
+                        Button(action: { calendarDisplayDate = Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate) ?? calendarDisplayDate }) { Image(systemName: "chevron.left") }
                         Spacer(); Text(dataManager.getMonthlyTitle(for: calendarDisplayDate)).font(.headline); Spacer()
-                        Button(action: { calendarDisplayDate = Calendar.current.date(byAdding: .month, value: 1, to: calendarDisplayDate)! }) { Image(systemName: "chevron.right") }
+                        Button(action: { calendarDisplayDate = Calendar.current.date(byAdding: .month, value: 1, to: calendarDisplayDate) ?? calendarDisplayDate }) { Image(systemName: "chevron.right") }
                     }.padding(.horizontal)
                     
                     CalendarGridView(dataManager: dataManager, displayDate: calendarDisplayDate, selectedDate: $dataManager.selectedDate, selectedTab: $selectedTab)
@@ -252,18 +252,100 @@ struct CalendarView: View {
 
 struct SettingsView: View {
     @ObservedObject var dataManager: AppDataManager
+    @State private var isShowingTutorial = false
+    
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("目標の通知")) {
-                    Toggle("オン", isOn: Binding(get: { dataManager.appSettings.goalNotificationEnabled }, set: { dataManager.appSettings.goalNotificationEnabled = $0; dataManager.saveSettings() }))
-                    if dataManager.appSettings.goalNotificationEnabled { DatePicker("時間", selection: Binding(get: { dataManager.appSettings.goalNotificationTime }, set: { dataManager.appSettings.goalNotificationTime = $0; dataManager.saveSettings() }), displayedComponents: .hourAndMinute) }
+                // --- 通知設定セクション ---
+                Section(header: Text("通知設定")) {
+                    Toggle("今日の目標通知", isOn: Binding(
+                        get: { dataManager.appSettings.goalNotificationEnabled },
+                        set: { dataManager.appSettings.goalNotificationEnabled = $0; dataManager.saveSettings() }
+                    ))
+                    
+                    if dataManager.appSettings.goalNotificationEnabled {
+                        DatePicker("通知時間", selection: Binding(
+                            get: { dataManager.appSettings.goalNotificationTime },
+                            set: { dataManager.appSettings.goalNotificationTime = $0; dataManager.saveSettings() }
+                        ), displayedComponents: .hourAndMinute)
+                    }
+                    
+                    Toggle("振り返り通知", isOn: Binding(
+                        get: { dataManager.appSettings.reflectionNotificationEnabled },
+                        set: { dataManager.appSettings.reflectionNotificationEnabled = $0; dataManager.saveSettings() }
+                    ))
+                    
+                    if dataManager.appSettings.reflectionNotificationEnabled {
+                        DatePicker("通知時間", selection: Binding(
+                            get: { dataManager.appSettings.reflectionNotificationTime },
+                            set: { dataManager.appSettings.reflectionNotificationTime = $0; dataManager.saveSettings() }
+                        ), displayedComponents: .hourAndMinute)
+                    }
                 }
-                Section(header: Text("振り返りの通知")) {
-                    Toggle("オン", isOn: Binding(get: { dataManager.appSettings.reflectionNotificationEnabled }, set: { dataManager.appSettings.reflectionNotificationEnabled = $0; dataManager.saveSettings() }))
-                    if dataManager.appSettings.reflectionNotificationEnabled { DatePicker("時間", selection: Binding(get: { dataManager.appSettings.reflectionNotificationTime }, set: { dataManager.appSettings.reflectionNotificationTime = $0; dataManager.saveSettings() }), displayedComponents: .hourAndMinute) }
+                
+                // --- サポートセクション ---
+                Section(header: Text("サポート")) {
+                    // 🌟 修正：行全体をタップ可能にしたボタン
+                    Button(action: {
+                        isShowingTutorial = true
+                    }) {
+                        HStack {
+                            Image(systemName: "book.closed.fill")
+                                .foregroundColor(.blue)
+                                .frame(width: 24)
+                            Text("使い方ガイドを見る")
+                                .foregroundColor(.primary)
+                            Spacer() // 👈 これで右端まで領域を広げる
+                            Image(systemName: "chevron.right") // 👈 押せることを示す矢印
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.secondary)
+                        }
+                        .contentShape(Rectangle()) // 👈 透明な隙間でもタップに反応させる
+                    }
+                    .buttonStyle(PlainButtonStyle()) // 👈 ボタン特有の青文字化を防ぐ
                 }
-            }.navigationTitle("設定")
+                
+                // --- プレミアム ---
+                Section(header: Text("プレミアム")) {
+                    Button(action: {
+                        // 課金処理（将来用）
+                    }) {
+                        HStack {
+                            Image(systemName: "crown.fill")
+                                .foregroundColor(.yellow)
+                                .frame(width: 24)
+                            VStack(alignment: .leading) {
+                                Text("プロ版にアップグレード")
+                                    .foregroundColor(.primary)
+                                Text("広告を非表示にする")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                
+                // --- アプリ情報 ---
+                Section(header: Text("このアプリについて")) {
+                    HStack {
+                        Text("バージョン")
+                        Spacer()
+                        Text("1.0.0")
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("設定")
+            .sheet(isPresented: $isShowingTutorial) {
+                TutorialView(isShowing: $isShowingTutorial)
+            }
         }
     }
 }

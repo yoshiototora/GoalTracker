@@ -1,8 +1,7 @@
+
 //
 //  AppDataManager.swift
 //  GoalTracker
-//
-//  Created by 吉岡晃基　 on 2026/04/06.
 //
 
 import SwiftUI
@@ -20,6 +19,9 @@ class AppDataManager: ObservableObject {
     private let weekConfigsKey = "week_configs_storage"
     private let monthConfigsKey = "month_configs_storage"
     private let settingsKey = "app_settings_storage"
+    
+    // 保存処理のデバウンス用
+    private var saveWorkItem: DispatchWorkItem?
     
     private static let ymdFormatter: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f }()
     private static let ymFormatter: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy-MM"; return f }()
@@ -61,7 +63,8 @@ class AppDataManager: ObservableObject {
         var targetWeekDates: [Date] = []
         
         for dayOffset in 0..<daysInMonth {
-            let currentDate = cal.date(byAdding: .day, value: dayOffset, to: startOfMonth)!
+            // クラッシュ対策: ! を削除し、失敗時はstartOfMonthを返す
+            let currentDate = cal.date(byAdding: .day, value: dayOffset, to: startOfMonth) ?? startOfMonth
             currentWeekDates.append(currentDate)
             if cal.isDate(currentDate, inSameDayAs: date) { targetWeekNumber = currentWeekNumber }
             if cal.component(.weekday, from: currentDate) == 1 || dayOffset == daysInMonth - 1 {
@@ -123,7 +126,6 @@ class AppDataManager: ObservableObject {
         return Double(goals.filter { $0.isCompleted }.count) / Double(goals.count)
     }
 
-    // 🌟 新機能：モチベーションUPのための計算ロジック
     func getCompletedTasksCount(for date: Date, isWeekly: Bool) -> Int {
         let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date)
         return dates.reduce(0) { sum, d in sum + getNote(for: d).tasks.filter { $0.isCompleted }.count }
@@ -138,7 +140,8 @@ class AppDataManager: ObservableObject {
 
     func getComparisonText(for date: Date, isWeekly: Bool) -> String {
         let currentRate = isWeekly ? getWeeklyDailyAvgRate(for: date) : getMonthlyDailyAvgRate(for: date)
-        let prevDate = Calendar.current.date(byAdding: isWeekly ? .day : .month, value: isWeekly ? -7 : -1, to: date)!
+        // クラッシュ対策
+        let prevDate = Calendar.current.date(byAdding: isWeekly ? .day : .month, value: isWeekly ? -7 : -1, to: date) ?? date
         let prevRate = isWeekly ? getWeeklyDailyAvgRate(for: prevDate) : getMonthlyDailyAvgRate(for: prevDate)
         
         let diff = Int((currentRate - prevRate) * 100)
@@ -147,10 +150,22 @@ class AppDataManager: ObservableObject {
         else { return "先\(isWeekly ? "週" : "月")と同じペースです！✨" }
     }
 
+    // パフォーマンス改善：バックグラウンドでの遅延保存処理
     private func persistData() {
-        if let encoded = try? JSONEncoder().encode(reflections) { UserDefaults.standard.set(encoded, forKey: reflectionsKey) }
-        if let encoded = try? JSONEncoder().encode(weekConfigs) { UserDefaults.standard.set(encoded, forKey: weekConfigsKey) }
-        if let encoded = try? JSONEncoder().encode(monthConfigs) { UserDefaults.standard.set(encoded, forKey: monthConfigsKey) }
+        saveWorkItem?.cancel()
+        
+        let currentReflections = self.reflections
+        let currentWeekConfigs = self.weekConfigs
+        let currentMonthConfigs = self.monthConfigs
+        
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            if let encoded = try? JSONEncoder().encode(currentReflections) { UserDefaults.standard.set(encoded, forKey: self.reflectionsKey) }
+            if let encoded = try? JSONEncoder().encode(currentWeekConfigs) { UserDefaults.standard.set(encoded, forKey: self.weekConfigsKey) }
+            if let encoded = try? JSONEncoder().encode(currentMonthConfigs) { UserDefaults.standard.set(encoded, forKey: self.monthConfigsKey) }
+        }
+        self.saveWorkItem = workItem
+        DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 0.5, execute: workItem)
     }
     
     func saveSettings() {
@@ -168,8 +183,8 @@ class AppDataManager: ObservableObject {
     func updateNotifications() {
         let center = UNUserNotificationCenter.current()
         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
-            if granted {
-                DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                if granted {
                     center.removePendingNotificationRequests(withIdentifiers: ["GoalNotification", "ReflectionNotification"])
                     if self.appSettings.goalNotificationEnabled {
                         let content = UNMutableNotificationContent(); content.title = "🟢 今日の目標"; content.body = "今日のタスクを確認しましょう！"; content.sound = .default
@@ -181,6 +196,10 @@ class AppDataManager: ObservableObject {
                         let comps = Calendar.current.dateComponents([.hour, .minute], from: self.appSettings.reflectionNotificationTime)
                         center.add(UNNotificationRequest(identifier: "ReflectionNotification", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)))
                     }
+                } else {
+                    // バグ修正：許可されなかった場合、トグルをオフに戻す
+                    self.appSettings.goalNotificationEnabled = false
+                    self.appSettings.reflectionNotificationEnabled = false
                 }
             }
         }
@@ -192,32 +211,57 @@ class AppDataManager: ObservableObject {
     }
 
     func syncGoalsToTasks(for date: Date) {
-        var note = getNote(for: date); let monthData = getMonthData(for: date); var addedAny = false
-        for goal in monthData.dailyGoals {
-            let title = "日次: " + goal.title
-            if !note.tasks.contains(where: { $0.title == title }) { note.tasks.append(Task(title: title)); addedAny = true }
-        }
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date)!
-        for tryItem in getNote(for: yesterday).tryList {
-            if !tryItem.isEmpty {
-                let title = "昨日のTry: " + tryItem
-                if !note.tasks.contains(where: { $0.title == title }) { note.tasks.append(Task(title: title)); addedAny = true }
+        var note = getNote(for: date)
+        let monthData = getMonthData(for: date)
+        
+        // 1. 現在有効な目標・Tryのリストを作成
+        let currentDailyGoalTitles = monthData.dailyGoals.map { "日次: " + $0.title }
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
+        let yesterdayTryTitles = getNote(for: yesterday).tryList.filter { !$0.isEmpty }.map { "昨日のTry: " + $0 }
+        
+        // 2. 古くなった未完了タスク（ゴーストタスク）を削除
+        note.tasks.removeAll { task in
+            if task.title.hasPrefix("日次: ") && !task.isCompleted {
+                return !currentDailyGoalTitles.contains(task.title)
             }
+            if task.title.hasPrefix("昨日のTry: ") && !task.isCompleted {
+                return !yesterdayTryTitles.contains(task.title)
+            }
+            return false
         }
-        if addedAny { saveNote(note, for: date) }
+        
+        // 3. 新しい目標・Tryを追加
+        for title in currentDailyGoalTitles {
+            if !note.tasks.contains(where: { $0.title == title }) { note.tasks.append(Task(title: title)) }
+        }
+        for title in yesterdayTryTitles {
+            if !note.tasks.contains(where: { $0.title == title }) { note.tasks.append(Task(title: title)) }
+        }
+        
+        saveNote(note, for: date)
     }
     
     func syncWeeklyGoals(for date: Date) {
         var weekData = getWeekData(for: date)
         let monthData = getMonthData(for: date)
-        var addedAny = false
+        
+        let currentWeeklyGoalTitles = monthData.weeklyGoals.map { $0.title }
+        
+        // ゴーストタスク削除
+        weekData.goals.removeAll { goal in
+            if !goal.isCompleted {
+                return !currentWeeklyGoalTitles.contains(goal.title)
+            }
+            return false
+        }
+        
         for goal in monthData.weeklyGoals {
             if !weekData.goals.contains(where: { $0.title == goal.title }) {
                 weekData.goals.append(Goal(title: goal.title))
-                addedAny = true
             }
         }
-        if addedAny { saveWeekData(weekData, for: date) }
+        
+        saveWeekData(weekData, for: date)
     }
 
     func getDailyTitle(for date: Date) -> String { return Self.titleDailyFormatter.string(from: date) }
