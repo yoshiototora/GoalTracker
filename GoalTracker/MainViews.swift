@@ -1,9 +1,3 @@
-//
-//  MainViews.swift
-//  GoalTracker
-//
-//  Created by 吉岡晃基　 on 2026/04/06.
-//
 import SwiftUI
 
 struct HomeView: View {
@@ -68,6 +62,16 @@ struct HomeView: View {
     }
 }
 
+struct StatBox: View {
+    let title: String; let value: String; let color: Color
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(title).font(.caption2).foregroundColor(.gray)
+            Text(value).font(.title3).bold().foregroundColor(color)
+        }.frame(maxWidth: .infinity).padding(.vertical, 8).background(Color(.systemGray6)).cornerRadius(10)
+    }
+}
+
 struct ReflectionView: View {
     @ObservedObject var dataManager: AppDataManager
     @State private var reflectionType = 0
@@ -83,6 +87,9 @@ struct ReflectionView: View {
         let note = dataManager.getNote(for: dataManager.selectedDate)
         let weekData = dataManager.getWeekData(for: dataManager.selectedDate)
         let monthData = dataManager.getMonthData(for: dataManager.selectedDate)
+        
+        let nextMonthDate = Calendar.current.date(byAdding: .month, value: 1, to: dataManager.selectedDate)!
+        let nextMonthData = dataManager.getMonthData(for: nextMonthDate)
         
         NavigationView {
             VStack {
@@ -115,9 +122,19 @@ struct ReflectionView: View {
                             }.padding(.horizontal)
                         } else if reflectionType == 1 {
                             VStack(alignment: .leading, spacing: 10) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("🏆 今週の達成記録").font(.caption).bold().foregroundColor(.primary)
+                                    HStack {
+                                        StatBox(title: "完了タスク", value: "\(dataManager.getCompletedTasksCount(for: dataManager.selectedDate, isWeekly: true))個", color: .green)
+                                        StatBox(title: "Try実行", value: "\(dataManager.getTryExecutionCount(for: dataManager.selectedDate, isWeekly: true))回", color: .red)
+                                    }
+                                    let compText = dataManager.getComparisonText(for: dataManager.selectedDate, isWeekly: true)
+                                    Text(compText).font(.caption).bold().foregroundColor(compText.contains("アップ") ? .orange : .gray).padding(.top, 4)
+                                }
+                                
                                 GoalListSection(title: "今週の目標チェック", iconColor: .orange, goals: weekData.goals, showCheckboxes: true, onUpdate: { var d = dataManager.getWeekData(for: dataManager.selectedDate); d.goals = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) })
                                 if isSunday {
-                                    TextEditorView(title: "今週の振り返り", text: Binding(get: { weekData.reflection }, set: { var d = dataManager.getWeekData(for: dataManager.selectedDate); d.reflection = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) }), minHeight: 120)
+                                    TextEditorView(title: "今週の振り返り", text: Binding(get: { weekData.reflection }, set: { var d = weekData; d.reflection = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) }), minHeight: 120)
                                 } else {
                                     VStack(alignment: .leading) {
                                         Text("今週の振り返り (※編集は週の最終日のみ)").font(.caption).foregroundColor(.gray)
@@ -127,9 +144,27 @@ struct ReflectionView: View {
                             }.padding(.horizontal)
                         } else {
                             VStack(alignment: .leading, spacing: 10) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("🏆 今月の達成記録").font(.caption).bold().foregroundColor(.primary)
+                                    HStack {
+                                        StatBox(title: "完了タスク", value: "\(dataManager.getCompletedTasksCount(for: dataManager.selectedDate, isWeekly: false))個", color: .green)
+                                        StatBox(title: "Try実行", value: "\(dataManager.getTryExecutionCount(for: dataManager.selectedDate, isWeekly: false))回", color: .red)
+                                    }
+                                    let compText = dataManager.getComparisonText(for: dataManager.selectedDate, isWeekly: false)
+                                    Text(compText).font(.caption).bold().foregroundColor(compText.contains("アップ") ? .blue : .gray).padding(.top, 4)
+                                }
+
                                 GoalListSection(title: "今月の目標チェック", iconColor: .blue, goals: monthData.monthlyGoals, showCheckboxes: true, onUpdate: { var d = dataManager.getMonthData(for: dataManager.selectedDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) })
+                                
                                 if isLastDayOfMonth {
-                                    TextEditorView(title: "今月の振り返り", text: Binding(get: { monthData.reflection }, set: { var d = dataManager.getMonthData(for: dataManager.selectedDate); d.reflection = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) }), minHeight: 120)
+                                    TextEditorView(title: "今月の振り返り", text: Binding(get: { monthData.reflection }, set: { var d = monthData; d.reflection = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) }), minHeight: 120)
+                                    
+                                    Divider().padding(.vertical, 8)
+                                    Text("🚀 来月に向けて").font(.subheadline).bold().foregroundColor(.purple)
+                                    GoalListSection(title: "来月の月次目標を設定", iconColor: .blue, goals: nextMonthData.monthlyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: nextMonthDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: nextMonthDate) })
+                                    GoalListSection(title: "来月の週次目標を設定", iconColor: .orange, goals: nextMonthData.weeklyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: nextMonthDate); d.weeklyGoals = $0; dataManager.saveMonthData(d, for: nextMonthDate) })
+                                    // 🌟 修正: 来月の日次目標設定欄を追加
+                                    GoalListSection(title: "来月の日次目標を設定", iconColor: .green, goals: nextMonthData.dailyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: nextMonthDate); d.dailyGoals = $0; dataManager.saveMonthData(d, for: nextMonthDate) })
                                 } else {
                                     VStack(alignment: .leading) {
                                         Text("今月の振り返り (※編集は月末のみ)").font(.caption).foregroundColor(.gray)
@@ -186,6 +221,7 @@ struct CalendarView: View {
                     
                     CalendarGridView(dataManager: dataManager, displayDate: calendarDisplayDate, selectedDate: $dataManager.selectedDate, selectedTab: $selectedTab)
                 }
+                .padding(.top, 10)
             }
             .navigationTitle("カレンダー")
             .toolbar {
@@ -211,54 +247,6 @@ struct CalendarView: View {
         else { d.dailyGoals = new }
         dataManager.saveMonthData(d, for: calendarDisplayDate)
         dataManager.syncAll(for: dataManager.selectedDate)
-    }
-}
-
-struct CalendarGridView: View {
-    @ObservedObject var dataManager: AppDataManager; let displayDate: Date; @Binding var selectedDate: Date; @Binding var selectedTab: Int
-    let cols = Array(repeating: GridItem(.flexible()), count: 7)
-    var body: some View {
-        let days = generateDays(); let today = Calendar.current.startOfDay(for: Date())
-        LazyVGrid(columns: cols, spacing: 8) {
-            ForEach(0..<days.count, id: \.self) { i in
-                if let d = days[i] {
-                    let isSel = Calendar.current.isDate(d, inSameDayAs: selectedDate); let isFut = d > today
-                    RoundedRectangle(cornerRadius: 6).fill(isFut ? Color(.systemGray6) : getCol(d))
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(isSel ? Color.blue : Color.clear, lineWidth: isSel ? 3 : 0))
-                        .aspectRatio(1, contentMode: .fit)
-                        .overlay(Text("\(Calendar.current.component(.day, from: d))").font(.caption).foregroundColor(isFut ? .gray : (rate(d) >= 0.75 ? .white : .primary)))
-                        .simultaneousGesture(TapGesture(count: 2).onEnded {
-                            if !isFut { selectedDate = d; selectedTab = 1 }
-                        })
-                        .simultaneousGesture(TapGesture(count: 1).onEnded {
-                            if !isFut { selectedDate = d }
-                        })
-                } else { Color.clear }
-            }
-        }.padding()
-    }
-    func rate(_ d: Date) -> Double { dataManager.getDailyCompletionRate(for: d) }
-    
-    func getCol(_ d: Date) -> Color {
-        let r = rate(d)
-        let note = dataManager.getNote(for: d)
-        
-        let hasReflection = !note.keep.isEmpty || !note.problem.isEmpty || note.tryList.contains { !$0.isEmpty }
-        
-        if r == 0 && !hasReflection { return Color(.systemGray6) }
-        if r == 0 { return Color.green.opacity(0.1) }
-        switch r {
-        case ..<0.25: return Color.green.opacity(0.25)
-        case 0.25..<0.5: return Color.green.opacity(0.5)
-        case 0.5..<0.75: return Color.green.opacity(0.7)
-        case 0.75..<1.0: return Color.green.opacity(0.85)
-        default: return Color.green
-        }
-    }
-    
-    func generateDays() -> [Date?] {
-        let cal = Calendar.current; let start = cal.date(from: cal.dateComponents([.year, .month], from: displayDate))!; let range = cal.range(of: .day, in: .month, for: start)!; let firstDay = cal.component(.weekday, from: start)
-        var days: [Date?] = Array(repeating: nil, count: firstDay - 1); for i in 0..<range.count { days.append(cal.date(byAdding: .day, value: i, to: start)!) }; return days
     }
 }
 

@@ -91,22 +91,25 @@ class AppDataManager: ObservableObject {
         return Double(goals.filter { $0.isCompleted }.count) / Double(goals.count)
     }
 
-    func getMonthlyDailyAvgRate(for date: Date) -> Double {
+    func getMonthDates(for date: Date) -> [Date] {
         let cal = Calendar.current
         guard let range = cal.range(of: .day, in: .month, for: date),
-              let startOfMonth = cal.date(from: cal.dateComponents([.year, .month], from: date)) else { return 0 }
-        let sum = (0..<range.count).compactMap { cal.date(byAdding: .day, value: $0, to: startOfMonth) }.map { getDailyCompletionRate(for: $0) }.reduce(0, +)
-        return sum / Double(range.count)
+              let startOfMonth = cal.date(from: cal.dateComponents([.year, .month], from: date)) else { return [] }
+        return (0..<range.count).compactMap { cal.date(byAdding: .day, value: $0, to: startOfMonth) }
+    }
+
+    func getMonthlyDailyAvgRate(for date: Date) -> Double {
+        let dates = getMonthDates(for: date)
+        guard !dates.isEmpty else { return 0 }
+        let sum = dates.map { getDailyCompletionRate(for: $0) }.reduce(0, +)
+        return sum / Double(dates.count)
     }
 
     func getMonthlyWeeklyGoalAvgRate(for date: Date) -> Double {
-        let cal = Calendar.current
-        guard let range = cal.range(of: .day, in: .month, for: date),
-              let startOfMonth = cal.date(from: cal.dateComponents([.year, .month], from: date)) else { return 0 }
+        let dates = getMonthDates(for: date)
         var weekKeysInMonth = Set<String>()
-        for i in 0..<range.count {
-            if let d = cal.date(byAdding: .day, value: i, to: startOfMonth) { weekKeysInMonth.insert(weekKey(d)) }
-        }
+        for d in dates { weekKeysInMonth.insert(weekKey(d)) }
+        
         let rates = weekKeysInMonth.map { key in
             let goals = weekConfigs[key]?.goals ?? []
             return goals.isEmpty ? 0.0 : Double(goals.filter { $0.isCompleted }.count) / Double(goals.count)
@@ -118,6 +121,30 @@ class AppDataManager: ObservableObject {
         let goals = getMonthData(for: date).monthlyGoals
         guard !goals.isEmpty else { return 0.0 }
         return Double(goals.filter { $0.isCompleted }.count) / Double(goals.count)
+    }
+
+    // 🌟 新機能：モチベーションUPのための計算ロジック
+    func getCompletedTasksCount(for date: Date, isWeekly: Bool) -> Int {
+        let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date)
+        return dates.reduce(0) { sum, d in sum + getNote(for: d).tasks.filter { $0.isCompleted }.count }
+    }
+
+    func getTryExecutionCount(for date: Date, isWeekly: Bool) -> Int {
+        let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date)
+        return dates.reduce(0) { sum, d in
+            sum + getNote(for: d).tasks.filter { $0.isCompleted && ($0.title.hasPrefix("昨日のTry: ") || $0.title.hasPrefix("🔥 【昨日のTry】")) }.count
+        }
+    }
+
+    func getComparisonText(for date: Date, isWeekly: Bool) -> String {
+        let currentRate = isWeekly ? getWeeklyDailyAvgRate(for: date) : getMonthlyDailyAvgRate(for: date)
+        let prevDate = Calendar.current.date(byAdding: isWeekly ? .day : .month, value: isWeekly ? -7 : -1, to: date)!
+        let prevRate = isWeekly ? getWeeklyDailyAvgRate(for: prevDate) : getMonthlyDailyAvgRate(for: prevDate)
+        
+        let diff = Int((currentRate - prevRate) * 100)
+        if diff > 0 { return "先\(isWeekly ? "週" : "月")より ＋\(diff)% アップ！🔥" }
+        else if diff < 0 { return "先\(isWeekly ? "週" : "月")より \(diff)% 📉" }
+        else { return "先\(isWeekly ? "週" : "月")と同じペースです！✨" }
     }
 
     private func persistData() {

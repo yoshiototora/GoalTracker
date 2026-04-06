@@ -138,3 +138,60 @@ struct TextEditorView: View {
         }.padding(.vertical, 4)
     }
 }
+
+struct CalendarGridView: View {
+    @ObservedObject var dataManager: AppDataManager; let displayDate: Date; @Binding var selectedDate: Date; @Binding var selectedTab: Int
+    let cols = Array(repeating: GridItem(.flexible()), count: 7)
+    var body: some View {
+        let days = generateDays(); let today = Calendar.current.startOfDay(for: Date())
+        LazyVGrid(columns: cols, spacing: 8) {
+            ForEach(0..<days.count, id: \.self) { i in
+                if let d = days[i] {
+                    let isSel = Calendar.current.isDate(d, inSameDayAs: selectedDate); let isFut = d > today
+                    RoundedRectangle(cornerRadius: 6).fill(isFut ? Color(.systemGray6) : getCol(d))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(isSel ? Color.blue : Color.clear, lineWidth: isSel ? 3 : 0))
+                        .aspectRatio(1, contentMode: .fit)
+                        // 🌟 修正: 40%以上(中くらいの緑以上)達成したら文字を白にする
+                        .overlay(Text("\(Calendar.current.component(.day, from: d))").font(.caption).foregroundColor(isFut ? .gray : (rate(d) >= 0.4 ? .white : .primary)))
+                        .simultaneousGesture(TapGesture(count: 2).onEnded {
+                            if !isFut { selectedDate = d; selectedTab = 1 }
+                        })
+                        .simultaneousGesture(TapGesture(count: 1).onEnded {
+                            if !isFut { selectedDate = d }
+                        })
+                } else { Color.clear }
+            }
+        }.padding()
+    }
+    func rate(_ d: Date) -> Double { dataManager.getDailyCompletionRate(for: d) }
+    
+    // 🌟 修正: タスクが3つの時(33%と67%)でも色がハッキリ分かれるように閾値を調整
+    func getCol(_ d: Date) -> Color {
+        let r = rate(d)
+        let note = dataManager.getNote(for: d)
+        let hasReflection = !note.keep.isEmpty || !note.problem.isEmpty || note.tryList.contains { !$0.isEmpty }
+        
+        if r == 0 && !hasReflection { return Color(.systemGray6) } // 何もしていない日
+        if r == 0 { return Color.yellow.opacity(0.3) } // 振り返りのみ
+        
+        switch r {
+        case ..<0.4:
+            // タスク1/3(33%)や1/4(25%)など
+            return Color(red: 0.65, green: 0.9, blue: 0.65) // 薄い緑
+        case 0.4..<0.75:
+            // タスク2/3(67%)や1/2(50%)など
+            return Color(red: 0.3, green: 0.75, blue: 0.3) // 中くらいの緑
+        case 0.75..<1.0:
+            // タスク3/4(75%)や4/5(80%)など
+            return Color(red: 0.15, green: 0.55, blue: 0.15) // 濃い緑
+        default:
+            // 100%達成！
+            return Color(red: 0.05, green: 0.35, blue: 0.15) // 深緑
+        }
+    }
+    
+    func generateDays() -> [Date?] {
+        let cal = Calendar.current; let start = cal.date(from: cal.dateComponents([.year, .month], from: displayDate))!; let range = cal.range(of: .day, in: .month, for: start)!; let firstDay = cal.component(.weekday, from: start)
+        var days: [Date?] = Array(repeating: nil, count: firstDay - 1); for i in 0..<range.count { days.append(cal.date(byAdding: .day, value: i, to: start)!) }; return days
+    }
+}
