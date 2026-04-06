@@ -204,39 +204,67 @@ struct ReflectionView: View {
 struct CalendarView: View {
     @ObservedObject var dataManager: AppDataManager
     @Binding var selectedTab: Int
-    @State private var calendarDisplayDate = Date()
+    
+    // 🌟 月のオフセット（0が今月、-1が先月、1が来月）
+    @State private var monthOffset: Int = 0
+    
+    // 🌟 オフセットから表示用のDateを計算する関数
+    private func displayDate(for offset: Int) -> Date {
+        // 月の末日（31日など）によるズレを防ぐため、今月の1日を基準に計算します
+        let comp = Calendar.current.dateComponents([.year, .month], from: Date())
+        let startOfCurrentMonth = Calendar.current.date(from: comp) ?? Date()
+        return Calendar.current.date(byAdding: .month, value: offset, to: startOfCurrentMonth) ?? Date()
+    }
+
     var body: some View {
-        let monthData = dataManager.getMonthData(for: calendarDisplayDate)
         NavigationView {
-            ScrollView {
-                VStack(spacing: 15) {
-                    HStack(spacing: 10) {
-                        CompositeSummaryCard(title: "\(dataManager.getWeeklyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getWeeklyDailyAvgRate(for: dataManager.selectedDate), rate2: dataManager.getWeeklyGoalRate(for: dataManager.selectedDate), rate3: nil, color2: .orange, color3: .clear)
-                        CompositeSummaryCard(title: "\(dataManager.getMonthlyTitle(for: calendarDisplayDate))の達成度", rate1: dataManager.getMonthlyDailyAvgRate(for: calendarDisplayDate), rate2: dataManager.getMonthlyWeeklyGoalAvgRate(for: calendarDisplayDate), rate3: dataManager.getMonthlyGoalRate(for: calendarDisplayDate), color2: .orange, color3: .blue)
-                    }.padding(.horizontal)
-
-                    VStack(spacing: 10) {
-                        GoalListSection(title: "\(dataManager.getMonthlyTitle(for: calendarDisplayDate))の月次目標", iconColor: .blue, goals: monthData.monthlyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: calendarDisplayDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: calendarDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
-                            copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate) ?? calendarDisplayDate).monthlyGoals, field: .monthly)
-                        }
-                        GoalListSection(title: "\(dataManager.getMonthlyTitle(for: calendarDisplayDate))の週次目標", iconColor: .orange, goals: monthData.weeklyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: calendarDisplayDate); d.weeklyGoals = $0; dataManager.saveMonthData(d, for: calendarDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
-                            copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate) ?? calendarDisplayDate).weeklyGoals, field: .weekly)
-                        }
-                        GoalListSection(title: "\(dataManager.getMonthlyTitle(for: calendarDisplayDate))の日次目標", iconColor: .green, goals: monthData.dailyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: calendarDisplayDate); d.dailyGoals = $0; dataManager.saveMonthData(d, for: calendarDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
-                            copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate) ?? calendarDisplayDate).dailyGoals, field: .daily)
-                        }
-                    }.padding(.horizontal)
-
-                    HStack {
-                        Button(action: { calendarDisplayDate = Calendar.current.date(byAdding: .month, value: -1, to: calendarDisplayDate) ?? calendarDisplayDate }) { Image(systemName: "chevron.left") }
-                        Spacer(); Text(dataManager.getMonthlyTitle(for: calendarDisplayDate)).font(.headline); Spacer()
-                        Button(action: { calendarDisplayDate = Calendar.current.date(byAdding: .month, value: 1, to: calendarDisplayDate) ?? calendarDisplayDate }) { Image(systemName: "chevron.right") }
-                    }.padding(.horizontal)
+            // 🌟 TabViewを使って横スワイプを実現！
+            TabView(selection: $monthOffset) {
+                // 前後5年分（-60ヶ月 〜 +60ヶ月）をスワイプできるようにする
+                ForEach(-60...60, id: \.self) { offset in
+                    let currentDisplayDate = displayDate(for: offset)
+                    let monthData = dataManager.getMonthData(for: currentDisplayDate)
                     
-                    CalendarGridView(dataManager: dataManager, displayDate: calendarDisplayDate, selectedDate: $dataManager.selectedDate, selectedTab: $selectedTab)
+                    ScrollView {
+                        VStack(spacing: 15) {
+                            HStack(spacing: 10) {
+                                CompositeSummaryCard(title: "\(dataManager.getWeeklyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getWeeklyDailyAvgRate(for: dataManager.selectedDate), rate2: dataManager.getWeeklyGoalRate(for: dataManager.selectedDate), rate3: nil, color2: .orange, color3: .clear)
+                                CompositeSummaryCard(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の達成度", rate1: dataManager.getMonthlyDailyAvgRate(for: currentDisplayDate), rate2: dataManager.getMonthlyWeeklyGoalAvgRate(for: currentDisplayDate), rate3: dataManager.getMonthlyGoalRate(for: currentDisplayDate), color2: .orange, color3: .blue)
+                            }.padding(.horizontal)
+
+                            VStack(spacing: 10) {
+                                GoalListSection(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の月次目標", iconColor: .blue, goals: monthData.monthlyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: currentDisplayDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: currentDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
+                                    copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: currentDisplayDate) ?? currentDisplayDate).monthlyGoals, field: .monthly, date: currentDisplayDate)
+                                }
+                                GoalListSection(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の週次目標", iconColor: .orange, goals: monthData.weeklyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: currentDisplayDate); d.weeklyGoals = $0; dataManager.saveMonthData(d, for: currentDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
+                                    copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: currentDisplayDate) ?? currentDisplayDate).weeklyGoals, field: .weekly, date: currentDisplayDate)
+                                }
+                                GoalListSection(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の日次目標", iconColor: .green, goals: monthData.dailyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: currentDisplayDate); d.dailyGoals = $0; dataManager.saveMonthData(d, for: currentDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
+                                    copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: currentDisplayDate) ?? currentDisplayDate).dailyGoals, field: .daily, date: currentDisplayDate)
+                                }
+                            }.padding(.horizontal)
+
+                            HStack {
+                                // 🌟 矢印ボタンを押した時もスワイプと同じ動き（アニメーション付き）になるように修正
+                                Button(action: { withAnimation { monthOffset -= 1 } }) {
+                                    Image(systemName: "chevron.left").padding()
+                                }
+                                Spacer()
+                                Text(dataManager.getMonthlyTitle(for: currentDisplayDate)).font(.headline)
+                                Spacer()
+                                Button(action: { withAnimation { monthOffset += 1 } }) {
+                                    Image(systemName: "chevron.right").padding()
+                                }
+                            }.padding(.horizontal)
+                            
+                            CalendarGridView(dataManager: dataManager, displayDate: currentDisplayDate, selectedDate: $dataManager.selectedDate, selectedTab: $selectedTab)
+                        }
+                        .padding(.top, 10)
+                        .tag(offset) // 👈 これでページ番号（オフセット）と紐づけます
+                    }
                 }
-                .padding(.top, 10)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never)) // 🌟 スワイプ可能にするおまじない
             .navigationTitle("カレンダー")
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { hideKeyboard() } }
@@ -246,20 +274,21 @@ struct CalendarView: View {
     
     enum F { case monthly, weekly, daily }
     
-    func copyPrev(prev: [Goal], field: F) {
+    // 🌟 複数月を同時に扱うため、date引数を追加して「どの月をコピーするか」を明示
+    func copyPrev(prev: [Goal], field: F, date: Date) {
         var curr: [Goal]
         switch field {
-        case .monthly: curr = dataManager.getMonthData(for: calendarDisplayDate).monthlyGoals
-        case .weekly: curr = dataManager.getMonthData(for: calendarDisplayDate).weeklyGoals
-        case .daily: curr = dataManager.getMonthData(for: calendarDisplayDate).dailyGoals
+        case .monthly: curr = dataManager.getMonthData(for: date).monthlyGoals
+        case .weekly: curr = dataManager.getMonthData(for: date).weeklyGoals
+        case .daily: curr = dataManager.getMonthData(for: date).dailyGoals
         }
         let titles = curr.map { $0.title }
         var new = curr; for g in prev { if !titles.contains(g.title) { new.append(Goal(title: g.title)) } }
-        var d = dataManager.getMonthData(for: calendarDisplayDate)
+        var d = dataManager.getMonthData(for: date)
         if field == .monthly { d.monthlyGoals = new }
         else if field == .weekly { d.weeklyGoals = new }
         else { d.dailyGoals = new }
-        dataManager.saveMonthData(d, for: calendarDisplayDate)
+        dataManager.saveMonthData(d, for: date)
         dataManager.syncAll(for: dataManager.selectedDate)
     }
 }
