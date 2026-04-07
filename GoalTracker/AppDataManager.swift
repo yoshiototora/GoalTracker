@@ -1,4 +1,3 @@
-
 //
 //  AppDataManager.swift
 //  GoalTracker
@@ -14,13 +13,16 @@ class AppDataManager: ObservableObject {
     @Published var monthConfigs: [String: MonthData] = [:]
     @Published var selectedDate: Date = Date()
     @Published var appSettings: AppSettings = AppSettings()
+    @Published var futureVisions: [FutureVision] = []
+    @Published var userStats: UserStats = UserStats()
+    private let statsKey = "user_stats_storage"
     
+    private let futureVisionsKey = "future_visions_storage"
     private let reflectionsKey = "reflections_storage"
     private let weekConfigsKey = "week_configs_storage"
     private let monthConfigsKey = "month_configs_storage"
     private let settingsKey = "app_settings_storage"
     
-    // 保存処理のデバウンス用
     private var saveWorkItem: DispatchWorkItem?
     
     private static let ymdFormatter: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f }()
@@ -29,15 +31,20 @@ class AppDataManager: ObservableObject {
     private static let titleWeeklyFormatter: DateFormatter = { let f = DateFormatter(); f.dateFormat = "M/d"; return f }()
     private static let titleMonthlyFormatter: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy年M月"; return f }()
     
-    init() { loadFromDisk() }
+    init() {
+        loadFromDisk()
+        loadFutureVisions()
+    }
     
     func resetAllData() {
         UserDefaults.standard.removeObject(forKey: reflectionsKey)
         UserDefaults.standard.removeObject(forKey: weekConfigsKey)
         UserDefaults.standard.removeObject(forKey: monthConfigsKey)
+        UserDefaults.standard.removeObject(forKey: futureVisionsKey)
         self.reflections = [:]
         self.weekConfigs = [:]
         self.monthConfigs = [:]
+        self.futureVisions = []
     }
     
     func getNote(for date: Date) -> DailyNote { reflections[dateKey(date)] ?? DailyNote() }
@@ -63,7 +70,6 @@ class AppDataManager: ObservableObject {
         var targetWeekDates: [Date] = []
         
         for dayOffset in 0..<daysInMonth {
-            // クラッシュ対策: ! を削除し、失敗時はstartOfMonthを返す
             let currentDate = cal.date(byAdding: .day, value: dayOffset, to: startOfMonth) ?? startOfMonth
             currentWeekDates.append(currentDate)
             if cal.isDate(currentDate, inSameDayAs: date) { targetWeekNumber = currentWeekNumber }
@@ -140,7 +146,6 @@ class AppDataManager: ObservableObject {
 
     func getComparisonText(for date: Date, isWeekly: Bool) -> String {
         let currentRate = isWeekly ? getWeeklyDailyAvgRate(for: date) : getMonthlyDailyAvgRate(for: date)
-        // クラッシュ対策
         let prevDate = Calendar.current.date(byAdding: isWeekly ? .day : .month, value: isWeekly ? -7 : -1, to: date) ?? date
         let prevRate = isWeekly ? getWeeklyDailyAvgRate(for: prevDate) : getMonthlyDailyAvgRate(for: prevDate)
         
@@ -150,10 +155,8 @@ class AppDataManager: ObservableObject {
         else { return "先\(isWeekly ? "週" : "月")と同じペースです！✨" }
     }
 
-    // パフォーマンス改善：バックグラウンドでの遅延保存処理
     private func persistData() {
         saveWorkItem?.cancel()
-        
         let currentReflections = self.reflections
         let currentWeekConfigs = self.weekConfigs
         let currentMonthConfigs = self.monthConfigs
@@ -197,7 +200,6 @@ class AppDataManager: ObservableObject {
                         center.add(UNNotificationRequest(identifier: "ReflectionNotification", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)))
                     }
                 } else {
-                    // バグ修正：許可されなかった場合、トグルをオフに戻す
                     self.appSettings.goalNotificationEnabled = false
                     self.appSettings.reflectionNotificationEnabled = false
                 }
@@ -214,12 +216,10 @@ class AppDataManager: ObservableObject {
         var note = getNote(for: date)
         let monthData = getMonthData(for: date)
         
-        // 1. 現在有効な目標・Tryのリストを作成
         let currentDailyGoalTitles = monthData.dailyGoals.map { "日次: " + $0.title }
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
         let yesterdayTryTitles = getNote(for: yesterday).tryList.filter { !$0.isEmpty }.map { "昨日のTry: " + $0 }
         
-        // 2. 古くなった未完了タスク（ゴーストタスク）を削除
         note.tasks.removeAll { task in
             if task.title.hasPrefix("日次: ") && !task.isCompleted {
                 return !currentDailyGoalTitles.contains(task.title)
@@ -230,7 +230,6 @@ class AppDataManager: ObservableObject {
             return false
         }
         
-        // 3. 新しい目標・Tryを追加
         for title in currentDailyGoalTitles {
             if !note.tasks.contains(where: { $0.title == title }) { note.tasks.append(Task(title: title)) }
         }
@@ -244,10 +243,8 @@ class AppDataManager: ObservableObject {
     func syncWeeklyGoals(for date: Date) {
         var weekData = getWeekData(for: date)
         let monthData = getMonthData(for: date)
-        
         let currentWeeklyGoalTitles = monthData.weeklyGoals.map { $0.title }
         
-        // ゴーストタスク削除
         weekData.goals.removeAll { goal in
             if !goal.isCompleted {
                 return !currentWeeklyGoalTitles.contains(goal.title)
@@ -260,10 +257,9 @@ class AppDataManager: ObservableObject {
                 weekData.goals.append(Goal(title: goal.title))
             }
         }
-        
         saveWeekData(weekData, for: date)
     }
-
+    
     func getDailyTitle(for date: Date) -> String { return Self.titleDailyFormatter.string(from: date) }
     func getWeeklyTitle(for date: Date) -> String {
         let dates = getCustomWeekInfo(for: date).dates
@@ -275,4 +271,63 @@ class AppDataManager: ObservableObject {
     func dateKey(_ date: Date) -> String { return Self.ymdFormatter.string(from: date) }
     func weekKey(_ date: Date) -> String { return getCustomWeekInfo(for: date).key }
     func monthKey(_ date: Date) -> String { return Self.ymFormatter.string(from: date) }
+
+    func saveFutureVisions() {
+        if let encoded = try? JSONEncoder().encode(futureVisions) {
+            UserDefaults.standard.set(encoded, forKey: futureVisionsKey)
+        }
+    }
+    
+    func loadFutureVisions() {
+        if let data = UserDefaults.standard.data(forKey: futureVisionsKey),
+           let decoded = try? JSONDecoder().decode([FutureVision].self, from: data) {
+            futureVisions = decoded
+        }
+    }
+    
+    func calculateDailyStreak(from date: Date = Date()) -> Int {
+        var streak = 0
+        var checkDate = date
+        let cal = Calendar.current
+
+        if getDailyCompletionRate(for: checkDate) < 1.0 {
+            checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
+        }
+
+        while getDailyCompletionRate(for: checkDate) == 1.0 && !getNote(for: checkDate).tasks.isEmpty {
+            streak += 1
+            checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
+        }
+        return streak
+    }
+
+    // 🌟 サブタスク管理用の安全なメソッド群
+    func toggleFutureVisionCompleted(id: UUID) {
+        if let index = futureVisions.firstIndex(where: { $0.id == id }) {
+            futureVisions[index].isCompleted.toggle()
+            saveFutureVisions()
+        }
+    }
+    
+    func addSubTask(to visionId: UUID, title: String) {
+        if let index = futureVisions.firstIndex(where: { $0.id == visionId }) {
+            futureVisions[index].subTasks.append(SubTask(title: title))
+            saveFutureVisions()
+        }
+    }
+    
+    func toggleSubTaskCompleted(visionId: UUID, subTaskId: UUID) {
+        if let vIndex = futureVisions.firstIndex(where: { $0.id == visionId }),
+           let sIndex = futureVisions[vIndex].subTasks.firstIndex(where: { $0.id == subTaskId }) {
+            futureVisions[vIndex].subTasks[sIndex].isCompleted.toggle()
+            saveFutureVisions()
+        }
+    }
+    
+    func deleteSubTasks(visionId: UUID, at offsets: IndexSet) {
+        if let index = futureVisions.firstIndex(where: { $0.id == visionId }) {
+            futureVisions[index].subTasks.remove(atOffsets: offsets)
+            saveFutureVisions()
+        }
+    }
 }

@@ -1,22 +1,32 @@
+//
+//  TutorialView.swift
+//  GoalTracker
+//
+
 import SwiftUI
 
-// チュートリアルの各ページの内容を定義する構造体
 struct TutorialPage: Identifiable {
     let id = UUID()
     let title: String
     let description: String
-    let imageName: String // システムアイコン（SFSymbols）の名前
+    let imageName: String
     let color: Color
 }
 
 struct TutorialView: View {
-    @Binding var isShowing: Bool // 画面を閉じるためのフラグ
+    @Binding var isShowing: Bool
     
     let pages = [
         TutorialPage(title: "目標を立てる", description: "日次・週次・月次の目標を設定して、進むべき方向を明確にしましょう。", imageName: "target", color: .green),
-        TutorialPage(title: "日々のタスクを完了する", description: "目標から自動でタスクが生成されます。毎日チェックして達成感を味わいましょう。", imageName: "checkmark.circle.fill", color: .orange),
-        TutorialPage(title: "KPTで振り返る", description: "Keep, Problem, Tryで1日を振り返り、自己成長のループを回しましょう。", imageName: "lightbulb.fill", color: .blue),
-        TutorialPage(title: "記録を積み上げる", description: "カレンダーのヒートマップが濃くなるほど、あなたの努力が形に残ります。", imageName: "calendar", color: .purple)
+        
+        TutorialPage(title: "日々のタスクを完了する", description: "目標から自動でタスクが生成されます。毎日すべてのタスクを完了させて、連続達成バッジ（ストリーク）を育てましょう！", imageName: "flame.fill", color: .orange),
+        
+        // 🌟 修正箇所：日曜日と月末の振り返りについて追記しました
+        TutorialPage(title: "KPTで振り返る", description: "Keep, Problem, Tryで1日を振り返り、自己成長のループを回しましょう。\n日曜日には「週次振り返り」、月末には「月次振り返り」も行えます。設定した「Try」は、次のタスクとして自動で引き継がれます！", imageName: "lightbulb.fill", color: .blue),
+        
+        TutorialPage(title: "記録を積み上げる", description: "カレンダーのヒートマップが濃くなるほど、あなたの努力が形に残ります。", imageName: "calendar", color: .purple),
+        
+        TutorialPage(title: "未来の自分を描く", description: "目標を達成した後、どうなっていたいか「未来の自分」リストを作りましょう。具体的なステップに分解すれば、夢への距離がグッと縮まります！", imageName: "sparkles", color: .pink)
     ]
     
     var body: some View {
@@ -35,23 +45,20 @@ struct TutorialView: View {
                             .foregroundColor(pages[index].color)
                         
                         VStack(spacing: 15) {
-                            Text(pages[index].title)
-                                .font(.title.bold())
-                            
+                            Text(pages[index].title).font(.title.bold())
                             Text(pages[index].description)
                                 .font(.body)
                                 .multilineTextAlignment(.center)
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal, 40)
+                                .lineSpacing(4) // 読みやすいように少し行間を調整
                         }
                         
                         Spacer()
                         
-                        // 最後のページだけ「はじめる」ボタンを出す
+                        // 最後のページだけ「はじめる」ボタンを表示
                         if index == pages.count - 1 {
-                            Button(action: {
-                                isShowing = false
-                            }) {
+                            Button(action: { isShowing = false }) {
                                 Text("はじめる")
                                     .font(.headline)
                                     .foregroundColor(.white)
@@ -62,20 +69,12 @@ struct TutorialView: View {
                                     .padding(.horizontal, 40)
                             }
                         }
-                        
                         Spacer().frame(height: 50)
                     }
                 }
             }
-            .tabViewStyle(.page) // 👈 これで横スワイプになります
-            .indexViewStyle(.page(backgroundDisplayMode: .always)) // 下の「...」を表示
+            .tabViewStyle(.page)
+            .indexViewStyle(.page(backgroundDisplayMode: .always))
         }
     }
 }
-//
-//  TutorialView.swift
-//  GoalTracker
-//
-//  Created by 吉岡晃基　 on 2026/04/06.
-//
-

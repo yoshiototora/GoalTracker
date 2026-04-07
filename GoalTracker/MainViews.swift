@@ -1,14 +1,23 @@
 import SwiftUI
+import UIKit
 
 struct HomeView: View {
     @ObservedObject var dataManager: AppDataManager
-    @State private var newTaskTitle = ""; @State private var showResetAlert = false
+    @State private var newTaskTitle = ""
+    @State private var showResetAlert = false
+    
     var body: some View {
         NavigationView {
             VStack {
-                Text(dataManager.dateKey(dataManager.selectedDate)).font(.caption).foregroundColor(.gray)
+                Text(dataManager.dateKey(dataManager.selectedDate))
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                
+                StreakBadgeView(streak: dataManager.calculateDailyStreak(from: dataManager.selectedDate))
+                
                 HStack {
-                    TextField("新しいタスク...", text: $newTaskTitle).textFieldStyle(RoundedBorderTextFieldStyle())
+                    TextField("新しいタスク...", text: $newTaskTitle)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
                     Button(action: {
                         if !newTaskTitle.isEmpty {
                             var note = dataManager.getNote(for: dataManager.selectedDate)
@@ -16,32 +25,44 @@ struct HomeView: View {
                             dataManager.saveNote(note, for: dataManager.selectedDate)
                             newTaskTitle = ""
                         }
-                    }) { Image(systemName: "plus.circle.fill").font(.title) }
+                    }) {
+                        Image(systemName: "plus.circle.fill").font(.title)
+                    }
                 }.padding()
+                
                 List {
                     Section {
                         let currentTasks = dataManager.getNote(for: dataManager.selectedDate).tasks
                         ForEach(currentTasks) { task in
                             HStack {
-                                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle").foregroundColor(task.isCompleted ? .green : .gray)
+                                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(task.isCompleted ? .green : .gray)
                                 
                                 if task.title.hasPrefix("日次: ") {
-                                    Image(systemName: "circle.fill").foregroundColor(.green).font(.system(size: 10))
-                                    Text(task.title.replacingOccurrences(of: "日次: ", with: "")).strikethrough(task.isCompleted)
+                                    Text(task.title.replacingOccurrences(of: "日次: ", with: ""))
+                                        .strikethrough(task.isCompleted)
                                 } else if task.title.hasPrefix("昨日のTry: ") {
-                                    Image(systemName: "flame.fill").foregroundColor(.red).font(.system(size: 12))
-                                    Text(task.title.replacingOccurrences(of: "昨日のTry: ", with: "")).strikethrough(task.isCompleted)
+                                    Text(task.title)
+                                        .strikethrough(task.isCompleted)
+                                        .foregroundColor(.blue)
                                 } else {
-                                    Text(task.title).strikethrough(task.isCompleted)
+                                    Text(task.title)
+                                        .strikethrough(task.isCompleted)
                                 }
-                            }.onTapGesture {
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if task.isYearlyReflection && Calendar.current.component(.month, from: dataManager.selectedDate) != 12 { return }
+                                
                                 var note = dataManager.getNote(for: dataManager.selectedDate)
-                                if let i = note.tasks.firstIndex(where: { $0.id == task.id }) {
-                                    note.tasks[i].isCompleted.toggle()
+                                if let idx = note.tasks.firstIndex(where: { $0.id == task.id }) {
+                                    note.tasks[idx].isCompleted.toggle()
                                     dataManager.saveNote(note, for: dataManager.selectedDate)
                                 }
                             }
-                        }.onDelete { offsets in
+                        }
+                        .onDelete { offsets in
                             var note = dataManager.getNote(for: dataManager.selectedDate)
                             note.tasks.remove(atOffsets: offsets)
                             dataManager.saveNote(note, for: dataManager.selectedDate)
@@ -50,15 +71,9 @@ struct HomeView: View {
                 }
             }
             .navigationTitle("今日のタスク")
-            .onAppear { dataManager.syncAll(for: dataManager.selectedDate) }
-            .onChange(of: dataManager.selectedDate) { _, newDate in dataManager.syncAll(for: newDate) }
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) { Button(action: { showResetAlert = true }) { Image(systemName: "trash").foregroundColor(.red) } }
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { hideKeyboard() } }
             }
-            .alert("全データをリセット", isPresented: $showResetAlert) {
-                Button("キャンセル", role: .cancel) { }; Button("削除する", role: .destructive) { dataManager.resetAllData() }
-            } message: { Text("保存されているすべてのデータが消去されます。") }
         }
     }
 }
@@ -76,6 +91,8 @@ struct StatBox: View {
 struct ReflectionView: View {
     @ObservedObject var dataManager: AppDataManager
     @State private var reflectionType = 0
+    @State private var newFutureVision = ""
+    @State private var showYearlyAnimation = false
     
     private var isSunday: Bool { Calendar.current.component(.weekday, from: dataManager.selectedDate) == 1 }
     private var isLastDayOfMonth: Bool {
@@ -83,49 +100,48 @@ struct ReflectionView: View {
         let nextDay = cal.date(byAdding: .day, value: 1, to: date) ?? date
         return cal.component(.month, from: date) != cal.component(.month, from: nextDay)
     }
+    private var isDecember: Bool { Calendar.current.component(.month, from: dataManager.selectedDate) == 12 }
     
     var body: some View {
         let note = dataManager.getNote(for: dataManager.selectedDate)
         let weekData = dataManager.getWeekData(for: dataManager.selectedDate)
         let monthData = dataManager.getMonthData(for: dataManager.selectedDate)
-        
         let nextMonthDate = Calendar.current.date(byAdding: .month, value: 1, to: dataManager.selectedDate) ?? dataManager.selectedDate
         let nextMonthData = dataManager.getMonthData(for: nextMonthDate)
         
         NavigationView {
-            VStack(spacing: 0) { // 🌟 Pickerと下のスワイプ画面の隙間をなくす
-                
-                // 🌟 上部の切り替えボタン（スワイプと連動します）
+            VStack(spacing: 0) {
                 Picker("振り返り", selection: $reflectionType) {
                     Text("日次").tag(0)
                     if isSunday { Text("週次").tag(1) }
                     if isLastDayOfMonth { Text("月次").tag(2) }
+                    if isDecember { Text("年次").tag(3) }
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 .padding()
                 .onChange(of: dataManager.selectedDate) { _, _ in
                     if reflectionType == 1 && !isSunday { reflectionType = 0 }
                     if reflectionType == 2 && !isLastDayOfMonth { reflectionType = 0 }
+                    if reflectionType == 3 && !isDecember { reflectionType = 0 }
                 }
                 
-                // 🌟 TabViewを使って横スワイプを実現！
                 TabView(selection: $reflectionType) {
-                    
-                    // --- 📌 1ページ目：日次の振り返り (Tag: 0) ---
+                    // 🌟 日次振り返り
                     ScrollView {
                         VStack(spacing: 15) {
                             ReflectionAchievementCard(title: "\(dataManager.getDailyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getDailyCompletionRate(for: dataManager.selectedDate), rate2: nil, rate3: nil, color2: .clear, color3: .clear)
                             
                             VStack(alignment: .leading, spacing: 10) {
-                                TextEditorView(title: "Keep", text: Binding(get: { note.keep }, set: { updateNote($0, f: .keep) }), placeholder: "できたこと、継続したいこと")
-                                TextEditorView(title: "Problem", text: Binding(get: { note.problem }, set: { updateNote($0, f: .problem) }), placeholder: "できなかったこと")
-                                BulletInputSection(title: "Try", items: note.tryList, placeholder: "明日どうするか、どう改善するか") { newList in var n = dataManager.getNote(for: dataManager.selectedDate); n.tryList = newList; dataManager.saveNote(n, for: dataManager.selectedDate) }
+                                TextEditorView(title: "Keep（できたこと、継続したいこと）", text: Binding(get: { note.keep }, set: { updateNote($0, f: .keep) }), placeholder: "例：集中できた時間帯を維持する！")
+                                TextEditorView(title: "Problem（できなかったこと、課題）", text: Binding(get: { note.problem }, set: { updateNote($0, f: .problem) }), placeholder: "例：SNSを見すぎて作業できなかった")
+                                BulletInputSection(title: "Try（次回へのアクション）", items: note.tryList, placeholder: "例：朝はスマホを触らず作業開始する") { newList in
+                                    var n = dataManager.getNote(for: dataManager.selectedDate); n.tryList = newList; dataManager.saveNote(n, for: dataManager.selectedDate)
+                                }
                             }.padding(.horizontal)
                         }.padding(.vertical)
-                    }
-                    .tag(0) // 👈 これがPickerの .tag(0) と紐づきます
+                    }.tag(0)
                     
-                    // --- 📌 2ページ目：週次の振り返り (Tag: 1) ※日曜のみ表示 ---
+                    // 🌟 週次振り返り
                     if isSunday {
                         ScrollView {
                             VStack(spacing: 15) {
@@ -144,15 +160,21 @@ struct ReflectionView: View {
                                     
                                     GoalListSection(title: "今週の目標チェック", iconColor: .orange, goals: weekData.goals, showCheckboxes: true, onUpdate: { var d = dataManager.getWeekData(for: dataManager.selectedDate); d.goals = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) })
                                     
-                                    TextEditorView(title: "今週の振り返り", text: Binding(get: { weekData.reflection }, set: { var d = weekData; d.reflection = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) }), minHeight: 120)
+                                    TextEditorView(title: "今週のKeep（今週できたこと、継続したいこと）", text: Binding(get: { weekData.keep }, set: { var d = weekData; d.keep = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) }), placeholder: "例：平日は毎日30分は必ず作業できた！")
+                                    TextEditorView(title: "今週のProblem（今週できなかったこと、課題）", text: Binding(get: { weekData.problem }, set: { var d = weekData; d.problem = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) }), placeholder: "例：水曜と木曜は帰宅後にダラけて作業できなかった")
+                                    BulletInputSection(title: "来週のTry（来週へのアクション）", items: weekData.tryList, placeholder: "例：作業時間中はスマホを別の部屋に置く") { newList in
+                                        var d = dataManager.getWeekData(for: dataManager.selectedDate); d.tryList = newList; dataManager.saveWeekData(d, for: dataManager.selectedDate)
+                                    }
+                                    
+                                    // 🌟 エラー修正箇所：minHeight と placeholder の順番を逆にしました
+                                    TextEditorView(title: "今週の振り返り（自由記述）", text: Binding(get: { weekData.reflection }, set: { var d = weekData; d.reflection = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) }), minHeight: 120, placeholder: "今週の気づきや学びを自由に記録...")
                                     
                                 }.padding(.horizontal)
                             }.padding(.vertical)
-                        }
-                        .tag(1) // 👈 Pickerの .tag(1) と紐づきます
+                        }.tag(1)
                     }
                     
-                    // --- 📌 3ページ目：月次の振り返り (Tag: 2) ※月末のみ表示 ---
+                    // 🌟 月次振り返り
                     if isLastDayOfMonth {
                         ScrollView {
                             VStack(spacing: 15) {
@@ -171,7 +193,14 @@ struct ReflectionView: View {
 
                                     GoalListSection(title: "今月の目標チェック", iconColor: .blue, goals: monthData.monthlyGoals, showCheckboxes: true, onUpdate: { var d = dataManager.getMonthData(for: dataManager.selectedDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) })
                                     
-                                    TextEditorView(title: "今月の振り返り", text: Binding(get: { monthData.reflection }, set: { var d = monthData; d.reflection = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) }), minHeight: 120)
+                                    TextEditorView(title: "今月のKeep（今月できたこと）", text: Binding(get: { monthData.keep }, set: { var d = monthData; d.keep = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) }), placeholder: "例：作業時間を記録する習慣が定着した！")
+                                    TextEditorView(title: "今月のProblem（今月できなかったこと）", text: Binding(get: { monthData.problem }, set: { var d = monthData; d.problem = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) }), placeholder: "例：計画を詰め込みすぎて、未完了のタスクが多くなってしまった")
+                                    BulletInputSection(title: "来月のTry（来月へのアクション）", items: monthData.tryList, placeholder: "例：来月はタスクをさらに小さく分割して、実行のハードルを下げる") { newList in
+                                        var d = dataManager.getMonthData(for: dataManager.selectedDate); d.tryList = newList; dataManager.saveMonthData(d, for: dataManager.selectedDate)
+                                    }
+                                    
+                                    // 🌟 エラー修正箇所：minHeight と placeholder の順番を逆にしました
+                                    TextEditorView(title: "今月の振り返り（自由記述）", text: Binding(get: { monthData.reflection }, set: { var d = monthData; d.reflection = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) }), minHeight: 120, placeholder: "今月の気づきや学びを自由に記録...")
                                     
                                     Divider().padding(.vertical, 8)
                                     Text("🚀 来月に向けて").font(.subheadline).bold().foregroundColor(.blue)
@@ -181,36 +210,104 @@ struct ReflectionView: View {
                                     
                                 }.padding(.horizontal)
                             }.padding(.vertical)
-                        }
-                        .tag(2) // 👈 Pickerの .tag(2) と紐づきます
+                        }.tag(2)
                     }
                     
+                    if isDecember {
+                        ZStack {
+                            ScrollView {
+                                VStack(spacing: 20) {
+                                    Text("🎉 年末の振り返り").font(.title2).bold().padding(.top)
+                                    Text("今年1年間で達成した「未来の自分」を確認しましょう！\n（「未来の自分」タブと自動で連動しています）").font(.caption).foregroundColor(.gray).multilineTextAlignment(.center)
+                                    
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        ForEach(dataManager.futureVisions) { vision in
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                // 大目標のチェック
+                                                HStack {
+                                                    Button(action: {
+                                                        withAnimation(.spring()) {
+                                                            dataManager.toggleFutureVisionCompleted(id: vision.id)
+                                                            if let updatedVision = dataManager.futureVisions.first(where: { $0.id == vision.id }), updatedVision.isCompleted {
+                                                                showYearlyAnimation = true
+                                                                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { showYearlyAnimation = false }
+                                                            }
+                                                        }
+                                                    }) {
+                                                        Image(systemName: vision.isCompleted ? "checkmark.circle.fill" : "circle")
+                                                            .foregroundColor(vision.isCompleted ? .pink : .gray).font(.title2)
+                                                    }
+                                                    .buttonStyle(PlainButtonStyle())
+                                                    
+                                                    Text(vision.title).strikethrough(vision.isCompleted).foregroundColor(vision.isCompleted ? .secondary : .primary)
+                                                }
+                                                
+                                                // 具体的なステップ（サブタスク）のチェック
+                                                if !vision.subTasks.isEmpty {
+                                                    VStack(alignment: .leading, spacing: 6) {
+                                                        ForEach(vision.subTasks) { subTask in
+                                                            HStack {
+                                                                Button(action: {
+                                                                    dataManager.toggleSubTaskCompleted(visionId: vision.id, subTaskId: subTask.id)
+                                                                }) {
+                                                                    Image(systemName: subTask.isCompleted ? "checkmark.square.fill" : "square")
+                                                                        .foregroundColor(subTask.isCompleted ? .pink : .gray)
+                                                                }
+                                                                .buttonStyle(PlainButtonStyle())
+                                                                
+                                                                Text(subTask.title)
+                                                                    .font(.subheadline)
+                                                                    .strikethrough(subTask.isCompleted)
+                                                                    .foregroundColor(subTask.isCompleted ? .secondary : .gray)
+                                                                
+                                                                Spacer()
+                                                                
+                                                                Button(action: {
+                                                                    UIPasteboard.general.string = subTask.title
+                                                                }) {
+                                                                    Image(systemName: "doc.on.clipboard")
+                                                                        .foregroundColor(.gray)
+                                                                        .font(.system(size: 14))
+                                                                }
+                                                                .buttonStyle(PlainButtonStyle())
+                                                            }
+                                                        }
+                                                    }
+                                                    .padding(.leading, 35) // 少し右にずらして階層を表現
+                                                }
+                                            }
+                                            .padding(.vertical, 8)
+                                            Divider() // 項目ごとの区切り線
+                                        }
+                                    }
+                                    .padding().background(Color(.systemBackground)).cornerRadius(12).shadow(radius: 2).padding(.horizontal)
+                                }.padding(.bottom, 50)
+                            }
+                            if showYearlyAnimation {
+                                let completedCount = dataManager.futureVisions.filter { $0.isCompleted }.count
+                                LuxuriousCompletionEffect(completedCount: completedCount)
+                                    .transition(.opacity)
+                                    .zIndex(1)
+                            }
+                        }.tag(3)
+                    }
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never)) // 🌟 これを追加するだけでスワイプ可能になります！
+                .tabViewStyle(.page(indexDisplayMode: .never))
             }
             .navigationTitle("振り返り")
             .onAppear { dataManager.syncAll(for: dataManager.selectedDate) }
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { hideKeyboard() } }
-            }
+            .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { hideKeyboard() } } }
         }
     }
-    
     enum F { case keep, problem }
     func updateNote(_ t: String, f: F) { var n = dataManager.getNote(for: dataManager.selectedDate); if f == .keep { n.keep = t } else { n.problem = t }; dataManager.saveNote(n, for: dataManager.selectedDate) }
 }
 
-
 struct CalendarView: View {
-    @ObservedObject var dataManager: AppDataManager
-    @Binding var selectedTab: Int
-    
-    // 🌟 月のオフセット（0が今月、-1が先月、1が来月）
+    @ObservedObject var dataManager: AppDataManager; @Binding var selectedTab: Int
     @State private var monthOffset: Int = 0
     
-    // 🌟 オフセットから表示用のDateを計算する関数
     private func displayDate(for offset: Int) -> Date {
-        // 月の末日（31日など）によるズレを防ぐため、今月の1日を基準に計算します
         let comp = Calendar.current.dateComponents([.year, .month], from: Date())
         let startOfCurrentMonth = Calendar.current.date(from: comp) ?? Date()
         return Calendar.current.date(byAdding: .month, value: offset, to: startOfCurrentMonth) ?? Date()
@@ -218,9 +315,7 @@ struct CalendarView: View {
 
     var body: some View {
         NavigationView {
-            // 🌟 TabViewを使って横スワイプを実現！
             TabView(selection: $monthOffset) {
-                // 前後5年分（-60ヶ月 〜 +60ヶ月）をスワイプできるようにする
                 ForEach(-60...60, id: \.self) { offset in
                     let currentDisplayDate = displayDate(for: offset)
                     let monthData = dataManager.getMonthData(for: currentDisplayDate)
@@ -233,162 +328,193 @@ struct CalendarView: View {
                             }.padding(.horizontal)
 
                             VStack(spacing: 10) {
-                                GoalListSection(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の月次目標", iconColor: .blue, goals: monthData.monthlyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: currentDisplayDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: currentDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
-                                    copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: currentDisplayDate) ?? currentDisplayDate).monthlyGoals, field: .monthly, date: currentDisplayDate)
-                                }
-                                GoalListSection(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の週次目標", iconColor: .orange, goals: monthData.weeklyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: currentDisplayDate); d.weeklyGoals = $0; dataManager.saveMonthData(d, for: currentDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
-                                    copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: currentDisplayDate) ?? currentDisplayDate).weeklyGoals, field: .weekly, date: currentDisplayDate)
-                                }
-                                GoalListSection(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の日次目標", iconColor: .green, goals: monthData.dailyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: currentDisplayDate); d.dailyGoals = $0; dataManager.saveMonthData(d, for: currentDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) {
-                                    copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: currentDisplayDate) ?? currentDisplayDate).dailyGoals, field: .daily, date: currentDisplayDate)
-                                }
+                                GoalListSection(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の月次目標", iconColor: .blue, goals: monthData.monthlyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: currentDisplayDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: currentDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) { copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: currentDisplayDate) ?? currentDisplayDate).monthlyGoals, field: .monthly, date: currentDisplayDate) }
+                                GoalListSection(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の週次目標", iconColor: .orange, goals: monthData.weeklyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: currentDisplayDate); d.weeklyGoals = $0; dataManager.saveMonthData(d, for: currentDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) { copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: currentDisplayDate) ?? currentDisplayDate).weeklyGoals, field: .weekly, date: currentDisplayDate) }
+                                GoalListSection(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の日次目標", iconColor: .green, goals: monthData.dailyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: currentDisplayDate); d.dailyGoals = $0; dataManager.saveMonthData(d, for: currentDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) { copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: currentDisplayDate) ?? currentDisplayDate).dailyGoals, field: .daily, date: currentDisplayDate) }
                             }.padding(.horizontal)
 
-                            HStack {
-                                // 🌟 矢印ボタンを押した時もスワイプと同じ動き（アニメーション付き）になるように修正
-                                Button(action: { withAnimation { monthOffset -= 1 } }) {
-                                    Image(systemName: "chevron.left").padding()
-                                }
-                                Spacer()
-                                Text(dataManager.getMonthlyTitle(for: currentDisplayDate)).font(.headline)
-                                Spacer()
-                                Button(action: { withAnimation { monthOffset += 1 } }) {
-                                    Image(systemName: "chevron.right").padding()
-                                }
-                            }.padding(.horizontal)
-                            
                             CalendarGridView(dataManager: dataManager, displayDate: currentDisplayDate, selectedDate: $dataManager.selectedDate, selectedTab: $selectedTab)
-                        }
-                        .padding(.top, 10)
-                        .tag(offset) // 👈 これでページ番号（オフセット）と紐づけます
+                        }.padding(.top, 10).tag(offset)
                     }
                 }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never)) // 🌟 スワイプ可能にするおまじない
-            .navigationTitle("カレンダー")
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .navigationTitle(dataManager.getMonthlyTitle(for: displayDate(for: monthOffset)))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { hideKeyboard() } }
+                ToolbarItem(placement: .navigationBarLeading) { Button(action: { withAnimation { monthOffset -= 1 } }) { Image(systemName: "chevron.left") } }
+                ToolbarItem(placement: .navigationBarTrailing) { Button(action: { withAnimation { monthOffset += 1 } }) { Image(systemName: "chevron.right") } }
             }
         }
     }
     
     enum F { case monthly, weekly, daily }
-    
-    // 🌟 複数月を同時に扱うため、date引数を追加して「どの月をコピーするか」を明示
     func copyPrev(prev: [Goal], field: F, date: Date) {
         var curr: [Goal]
-        switch field {
-        case .monthly: curr = dataManager.getMonthData(for: date).monthlyGoals
-        case .weekly: curr = dataManager.getMonthData(for: date).weeklyGoals
-        case .daily: curr = dataManager.getMonthData(for: date).dailyGoals
-        }
+        switch field { case .monthly: curr = dataManager.getMonthData(for: date).monthlyGoals; case .weekly: curr = dataManager.getMonthData(for: date).weeklyGoals; case .daily: curr = dataManager.getMonthData(for: date).dailyGoals }
         let titles = curr.map { $0.title }
         var new = curr; for g in prev { if !titles.contains(g.title) { new.append(Goal(title: g.title)) } }
         var d = dataManager.getMonthData(for: date)
-        if field == .monthly { d.monthlyGoals = new }
-        else if field == .weekly { d.weeklyGoals = new }
-        else { d.dailyGoals = new }
-        dataManager.saveMonthData(d, for: date)
-        dataManager.syncAll(for: dataManager.selectedDate)
+        if field == .monthly { d.monthlyGoals = new } else if field == .weekly { d.weeklyGoals = new } else { d.dailyGoals = new }
+        dataManager.saveMonthData(d, for: date); dataManager.syncAll(for: dataManager.selectedDate)
     }
 }
 
 struct SettingsView: View {
-    @ObservedObject var dataManager: AppDataManager
-    @State private var isShowingTutorial = false
-    
+    @ObservedObject var dataManager: AppDataManager; @State private var isTutorial = false
     var body: some View {
         NavigationView {
             Form {
-                // --- 通知設定セクション ---
-                Section(header: Text("通知設定")) {
-                    Toggle("今日の目標通知", isOn: Binding(
-                        get: { dataManager.appSettings.goalNotificationEnabled },
-                        set: { dataManager.appSettings.goalNotificationEnabled = $0; dataManager.saveSettings() }
-                    ))
-                    
-                    if dataManager.appSettings.goalNotificationEnabled {
-                        DatePicker("通知時間", selection: Binding(
-                            get: { dataManager.appSettings.goalNotificationTime },
-                            set: { dataManager.appSettings.goalNotificationTime = $0; dataManager.saveSettings() }
-                        ), displayedComponents: .hourAndMinute)
+                Section("通知設定") {
+                    Toggle("目標通知", isOn: Binding(get: { dataManager.appSettings.goalNotificationEnabled }, set: { dataManager.appSettings.goalNotificationEnabled = $0; dataManager.saveSettings() }))
+                    if dataManager.appSettings.goalNotificationEnabled { DatePicker("時間", selection: Binding(get: { dataManager.appSettings.goalNotificationTime }, set: { dataManager.appSettings.goalNotificationTime = $0; dataManager.saveSettings() }), displayedComponents: .hourAndMinute) }
+                    Toggle("振り返り通知", isOn: Binding(get: { dataManager.appSettings.reflectionNotificationEnabled }, set: { dataManager.appSettings.reflectionNotificationEnabled = $0; dataManager.saveSettings() }))
+                    if dataManager.appSettings.reflectionNotificationEnabled { DatePicker("時間", selection: Binding(get: { dataManager.appSettings.reflectionNotificationTime }, set: { dataManager.appSettings.reflectionNotificationTime = $0; dataManager.saveSettings() }), displayedComponents: .hourAndMinute) }
+                }
+                Section("サポート") {
+                    Button(action: { isTutorial = true }) {
+                        HStack { Image(systemName: "book.fill").foregroundColor(.blue).frame(width: 24); Text("使い方ガイド").foregroundColor(.primary); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundColor(.secondary) }.contentShape(Rectangle())
+                    }.buttonStyle(.plain)
+                }
+                Section("アプリ情報") { HStack { Text("バージョン"); Spacer(); Text("1.0.0").foregroundColor(.secondary) } }
+            }.navigationTitle("設定").sheet(isPresented: $isTutorial) { TutorialView(isShowing: $isTutorial) }
+        }
+    }
+}
+
+struct FutureVisionView: View {
+    @ObservedObject var dataManager: AppDataManager
+    @State private var newVisionTitle = ""
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                Text("目標を達成した先に、どうなっていたいですか？\n「海外で働く」といった大きな目標に対して、「TOEICで900点を取る」などの具体的なステップを追加して夢を可視化しましょう。")
+                    .font(.caption).foregroundColor(.secondary).padding()
+
+                HStack {
+                    TextField("例：海外で働く！", text: $newVisionTitle)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    Button(action: {
+                        if !newVisionTitle.isEmpty {
+                            dataManager.futureVisions.append(FutureVision(title: newVisionTitle))
+                            dataManager.saveFutureVisions()
+                            newVisionTitle = ""
+                        }
+                    }) { Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.pink) }
+                    .buttonStyle(PlainButtonStyle())
+                }.padding(.horizontal)
+
+                List {
+                    ForEach(dataManager.futureVisions) { vision in
+                        FutureVisionRow(vision: vision, dataManager: dataManager)
                     }
-                    
-                    Toggle("振り返り通知", isOn: Binding(
-                        get: { dataManager.appSettings.reflectionNotificationEnabled },
-                        set: { dataManager.appSettings.reflectionNotificationEnabled = $0; dataManager.saveSettings() }
-                    ))
-                    
-                    if dataManager.appSettings.reflectionNotificationEnabled {
-                        DatePicker("通知時間", selection: Binding(
-                            get: { dataManager.appSettings.reflectionNotificationTime },
-                            set: { dataManager.appSettings.reflectionNotificationTime = $0; dataManager.saveSettings() }
-                        ), displayedComponents: .hourAndMinute)
+                    .onDelete { indexSet in
+                        dataManager.futureVisions.remove(atOffsets: indexSet)
+                        dataManager.saveFutureVisions()
                     }
                 }
+            }
+            .navigationTitle("✨ 未来の自分")
+            .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { hideKeyboard() } } }
+        }
+    }
+}
+
+struct FutureVisionRow: View {
+    let vision: FutureVision
+    @ObservedObject var dataManager: AppDataManager
+    
+    @State private var isExpanded = false
+    @State private var newSubTaskText = ""
+    
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 10) {
                 
-                // --- サポートセクション ---
-                Section(header: Text("サポート")) {
-                    // 🌟 修正：行全体をタップ可能にしたボタン
-                    Button(action: {
-                        isShowingTutorial = true
-                    }) {
-                        HStack {
-                            Image(systemName: "book.closed.fill")
-                                .foregroundColor(.blue)
-                                .frame(width: 24)
-                            Text("使い方ガイドを見る")
-                                .foregroundColor(.primary)
-                            Spacer() // 👈 これで右端まで領域を広げる
-                            Image(systemName: "chevron.right") // 👈 押せることを示す矢印
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.secondary)
+                // サブタスク一覧
+                ForEach(vision.subTasks) { subTask in
+                    HStack {
+                        Button(action: {
+                            dataManager.toggleSubTaskCompleted(visionId: vision.id, subTaskId: subTask.id)
+                        }) {
+                            Image(systemName: subTask.isCompleted ? "checkmark.square.fill" : "square")
+                                .foregroundColor(subTask.isCompleted ? .pink : .gray)
+                                .font(.system(size: 20))
                         }
-                        .contentShape(Rectangle()) // 👈 透明な隙間でもタップに反応させる
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Text(subTask.title)
+                            .strikethrough(subTask.isCompleted)
+                            .foregroundColor(subTask.isCompleted ? .secondary : .primary)
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            UIPasteboard.general.string = subTask.title
+                        }) {
+                            Image(systemName: "doc.on.clipboard")
+                                .foregroundColor(.gray)
+                                .font(.system(size: 16))
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .buttonStyle(PlainButtonStyle()) // 👈 ボタン特有の青文字化を防ぐ
+                    .padding(.vertical, 2)
                 }
                 
-                // --- プレミアム ---
-                Section(header: Text("プレミアム")) {
-                    Button(action: {
-                        // 課金処理（将来用）
-                    }) {
-                        HStack {
-                            Image(systemName: "crown.fill")
-                                .foregroundColor(.yellow)
-                                .frame(width: 24)
-                            VStack(alignment: .leading) {
-                                Text("プロ版にアップグレード")
-                                    .foregroundColor(.primary)
-                                Text("広告を非表示にする")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.secondary)
-                        }
-                        .contentShape(Rectangle())
+                // サブタスク追加枠
+                HStack {
+                    Image(systemName: "arrow.turn.down.right")
+                        .foregroundColor(.gray)
+                        .font(.caption)
+                    
+                    TextField("具体的なステップ", text: $newSubTaskText)
+                        .textFieldStyle(PlainTextFieldStyle())
+                        .onSubmit { addSubTask() }
+                    
+                    Button(action: { addSubTask() }) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(newSubTaskText.isEmpty ? .gray.opacity(0.3) : .pink)
+                            .font(.system(size: 24))
                     }
+                    .disabled(newSubTaskText.isEmpty)
                     .buttonStyle(PlainButtonStyle())
                 }
-                
-                // --- アプリ情報 ---
-                Section(header: Text("このアプリについて")) {
-                    HStack {
-                        Text("バージョン")
-                        Spacer()
-                        Text("1.0.0")
-                            .foregroundColor(.secondary)
+                .padding(.top, 5)
+            }
+            .padding(.leading, 10)
+            
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Button(action: {
+                        dataManager.toggleFutureVisionCompleted(id: vision.id)
+                    }) {
+                        Image(systemName: vision.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(vision.isCompleted ? .pink : .gray)
+                            .font(.title3)
                     }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Text(vision.title)
+                        .font(.headline)
+                        .strikethrough(vision.isCompleted)
+                }
+                
+                if !vision.subTasks.isEmpty {
+                    ProgressView(value: vision.progress)
+                        .tint(.pink)
+                        .scaleEffect(x: 1, y: 0.5, anchor: .center)
                 }
             }
-            .navigationTitle("設定")
-            .sheet(isPresented: $isShowingTutorial) {
-                TutorialView(isShowing: $isShowingTutorial)
-            }
+            .padding(.vertical, 4)
         }
+    }
+    
+    private func addSubTask() {
+        guard !newSubTaskText.isEmpty else { return }
+        dataManager.addSubTask(to: vision.id, title: newSubTaskText)
+        newSubTaskText = ""
     }
 }
