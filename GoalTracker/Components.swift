@@ -128,16 +128,39 @@ struct BulletInputSection: View {
     let title: String
     var items: [String]
     var placeholder: String = "..."
+    
+    // 🌟 修正ポイント: dataManager を onUpdate の上に書く
+    var dataManager: AppDataManager? = nil
     var onUpdate: ([String]) -> Void
     
     @State private var t = ""
     @State private var s = false
+    @State private var showAIAlert = false
+    @State private var vagueTry = ""
+    @State private var isAILoading = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title).font(.caption).foregroundColor(.gray)
                 Spacer()
+                
+                // dataManager が渡されている時だけ AIボタンを表示
+                if let dm = dataManager {
+                    Button(action: { showAIAlert = true }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                            Text("AI具体化")
+                        }
+                        .font(.caption).bold()
+                        .foregroundColor(dm.dailyAICount > 0 ? .pink : .gray)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Color.pink.opacity(0.1))
+                        .cornerRadius(12)
+                    }
+                    .disabled(dm.dailyAICount <= 0 || isAILoading)
+                }
+                
                 Button(action: { s = true }) {
                     Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.blue)
                 }
@@ -145,10 +168,9 @@ struct BulletInputSection: View {
             
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(items.indices, id: \.self) { index in
-                    let item = items[index]
                     HStack(alignment: .top, spacing: 4) {
                         Text("・").font(.body).foregroundColor(.secondary)
-                        Text(item).font(.body)
+                        Text(items[index]).font(.body)
                         Spacer()
                         Button(action: { var n = items; n.remove(at: index); onUpdate(n) }) {
                             Image(systemName: "xmark.circle.fill").foregroundColor(Color.gray.opacity(0.5))
@@ -156,17 +178,32 @@ struct BulletInputSection: View {
                     }.padding(.vertical, 8).padding(.horizontal, 12)
                 }
                 if items.isEmpty { Text(placeholder).font(.body).foregroundColor(Color(UIColor.placeholderText)).padding(12) }
+                if isAILoading {
+                    HStack { ProgressView().scaleEffect(0.8); Text("AIがタスクを生成中...").font(.caption).foregroundColor(.gray) }.padding(12)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .background(Color(.systemGray6))
             .cornerRadius(8)
-            .contentShape(Rectangle())
             .onTapGesture { s = true }
         }
         .alert("\(title)を追加", isPresented: $s) {
             TextField(placeholder, text: $t)
             Button("追加") { if !t.isEmpty { var n = items; n.append(t); onUpdate(n); t = "" } }
             Button("キャンセル", role: .cancel) { t = "" }
+        }
+        .alert("AIでTryを具体化 (残り\(dataManager?.dailyAICount ?? 0)回)", isPresented: $showAIAlert) {
+            TextField("曖昧なTry (例: 早く寝る)", text: $vagueTry)
+            Button("具体化して追加") {
+                guard !vagueTry.isEmpty, let dm = dataManager else { return }
+                isAILoading = true
+                dm.convertTryToTasks(tryText: vagueTry) { newTrys in
+                    isAILoading = false
+                    if let trys = newTrys { var n = items; n.append(contentsOf: trys); onUpdate(n) }
+                    vagueTry = ""
+                }
+            }
+            Button("キャンセル", role: .cancel) { vagueTry = "" }
         }
     }
 }

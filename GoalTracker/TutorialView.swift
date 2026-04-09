@@ -21,12 +21,15 @@ struct TutorialView: View {
         
         TutorialPage(title: "日々のタスクを完了する", description: "目標から自動でタスクが生成されます。毎日すべてのタスクを完了させて、連続達成バッジ（ストリーク）を育てましょう！", imageName: "flame.fill", color: .orange),
         
-        // 🌟 修正箇所：日曜日と月末の振り返りについて追記しました
         TutorialPage(title: "KPTで振り返る", description: "Keep, Problem, Tryで1日を振り返り、自己成長のループを回しましょう。\n日曜日には「週次振り返り」、月末には「月次振り返り」も行えます。設定した「Try」は、次のタスクとして自動で引き継がれます！", imageName: "lightbulb.fill", color: .blue),
         
         TutorialPage(title: "記録を積み上げる", description: "カレンダーのヒートマップが濃くなるほど、あなたの努力が形に残ります。", imageName: "calendar", color: .purple),
         
-        TutorialPage(title: "未来の自分を描く", description: "目標を達成した後、どうなっていたいか「未来の自分」リストを作りましょう。具体的なステップに分解すれば、夢への距離がグッと縮まります！", imageName: "sparkles", color: .pink)
+        // 🌟 修正箇所：年末の振り返りと、ステップ100%達成の条件について追記しました
+        TutorialPage(title: "未来の自分を描く", description: "「未来の自分」リストを作り、具体的なステップに分解しましょう。\nすべてのステップ（100%）を完了すると、年末の振り返り画面から大きな目標を達成でき、特別な演出が待っています！", imageName: "sparkles", color: .pink),
+        
+        // 🌟 追加箇所：今回追加した「AI機能」のアピールページを新設しました！
+        TutorialPage(title: "AIアシスタント", description: "「未来の自分」への具体的なステップ提案や、曖昧な「Try」を明日からできるタスクに変換するAI機能を搭載。\nあなたの専属コーチとして目標達成をサポートします！", imageName: "wand.and.stars", color: .indigo)
     ]
     
     var body: some View {
