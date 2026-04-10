@@ -29,6 +29,7 @@ struct ContentView: View {
             }
             
             // 📱 全画面の共通下部メニューの上に広告を配置
+            
             AdBannerView()
                 .frame(width: 320, height: 50)
                 .background(Color(UIColor.systemBackground))

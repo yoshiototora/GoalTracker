@@ -238,49 +238,52 @@ class GoalManager: ObservableObject {
     }
 
     func syncGoalsToTasks(for date: Date) {
-        var note = getNote(for: date)
-        let monthData = getMonthData(for: date)
-        let currentDailyGoalTitles = monthData.dailyGoals.map { "日次: " + $0.title }
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
-        let yesterdayTryTitles = getNote(for: yesterday).tryList.filter { !$0.isEmpty }.map { "昨日のTry: " + $0 }
-        let lastWeekTryTitles = getLastWeeklyTryList(for: date).filter { !$0.isEmpty }.map { "先週のTry: " + $0 }
-        let lastMonthTryTitles = getLastMonthlyTryList(for: date).filter { !$0.isEmpty }.map { "先月のTry: " + $0 }
-        let allTryTitles = yesterdayTryTitles + lastWeekTryTitles + lastMonthTryTitles
-        
-        note.tasks.removeAll { task in
-            if task.title.hasPrefix("日次: ") && !task.isCompleted { return !currentDailyGoalTitles.contains(task.title) }
-            if (task.title.hasPrefix("昨日のTry: ") || task.title.hasPrefix("先週のTry: ") || task.title.hasPrefix("先月のTry: ")) && !task.isCompleted {
-                return !allTryTitles.contains(task.title)
+            var note = getNote(for: date)
+            let monthData = getMonthData(for: date)
+            let currentDailyGoalTitles = monthData.dailyGoals.map { "日次: " + $0.title }
+            let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
+            let yesterdayTryTitles = getNote(for: yesterday).tryList.filter { !$0.isEmpty }.map { "昨日のTry: " + $0 }
+            let lastWeekTryTitles = getLastWeeklyTryList(for: date).filter { !$0.isEmpty }.map { "先週のTry: " + $0 }
+            let lastMonthTryTitles = getLastMonthlyTryList(for: date).filter { !$0.isEmpty }.map { "先月のTry: " + $0 }
+            let allTryTitles = yesterdayTryTitles + lastWeekTryTitles + lastMonthTryTitles
+            
+            // 🔴 修正：完了状態に関わらず、大元のリストから消えたら削除するように変更
+            note.tasks.removeAll { task in
+                if task.title.hasPrefix("日次: ") {
+                    return !currentDailyGoalTitles.contains(task.title)
+                }
+                if task.title.hasPrefix("昨日のTry: ") || task.title.hasPrefix("先週のTry: ") || task.title.hasPrefix("先月のTry: ") {
+                    return !allTryTitles.contains(task.title)
+                }
+                return false
             }
-            return false
+            
+            for title in currentDailyGoalTitles {
+                if !note.tasks.contains(where: { $0.title == title }) { note.tasks.append(Task(title: title)) }
+            }
+            for title in allTryTitles {
+                if !note.tasks.contains(where: { $0.title == title }) { note.tasks.append(Task(title: title)) }
+            }
+            saveNote(note, for: date)
         }
-        
-        for title in currentDailyGoalTitles {
-            if !note.tasks.contains(where: { $0.title == title }) { note.tasks.append(Task(title: title)) }
-        }
-        for title in allTryTitles {
-            if !note.tasks.contains(where: { $0.title == title }) { note.tasks.append(Task(title: title)) }
-        }
-        saveNote(note, for: date)
-    }
 
-    func syncWeeklyGoals(for date: Date) {
-        var weekData = getWeekData(for: date)
-        let monthData = getMonthData(for: date)
-        let currentWeeklyGoalTitles = monthData.weeklyGoals.map { $0.title }
-        
-        weekData.goals.removeAll { goal in
-            if !goal.isCompleted { return !currentWeeklyGoalTitles.contains(goal.title) }
-            return false
-        }
-        
-        for goal in monthData.weeklyGoals {
-            if !weekData.goals.contains(where: { $0.title == goal.title }) {
-                weekData.goals.append(Goal(title: goal.title))
+        func syncWeeklyGoals(for date: Date) {
+            var weekData = getWeekData(for: date)
+            let monthData = getMonthData(for: date)
+            let currentWeeklyGoalTitles = monthData.weeklyGoals.map { $0.title }
+            
+            // 🔴 修正：完了状態に関わらず、大元のリストから消えたら削除するように変更
+            weekData.goals.removeAll { goal in
+                return !currentWeeklyGoalTitles.contains(goal.title)
             }
+            
+            for goal in monthData.weeklyGoals {
+                if !weekData.goals.contains(where: { $0.title == goal.title }) {
+                    weekData.goals.append(Goal(title: goal.title))
+                }
+            }
+            saveWeekData(weekData, for: date)
         }
-        saveWeekData(weekData, for: date)
-    }
     
     func getDailyTitle(for date: Date) -> String { return Self.titleDailyFormatter.string(from: date) }
     func getWeeklyTitle(for date: Date) -> String {
