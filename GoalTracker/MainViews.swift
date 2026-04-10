@@ -25,7 +25,8 @@ struct HomeView: View {
                     Button(action: {
                         if !newTaskTitle.isEmpty {
                             var note = dataManager.getNote(for: dataManager.selectedDate)
-                            note.tasks.append(Task(title: newTaskTitle))
+                            // 手動追加のタスクは normal として追加
+                            note.tasks.append(Task(title: newTaskTitle, type: .normal))
                             dataManager.saveNote(note, for: dataManager.selectedDate)
                             newTaskTitle = ""
                         }
@@ -42,10 +43,11 @@ struct HomeView: View {
                                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                                     .foregroundColor(task.isCompleted ? .green : .gray)
                                 
-                                if task.title.hasPrefix("日次: ") {
-                                    Text(task.title.replacingOccurrences(of: "日次: ", with: ""))
+                                // 🔴 改善点：型で表示を切り分ける
+                                if task.type == .dailyGoal {
+                                    Text("日次: \(task.title)") // UI上でのみ「日次:」をつける
                                         .strikethrough(task.isCompleted)
-                                } else if task.title.hasPrefix("昨日のTry: ") || task.title.hasPrefix("先週のTry: ") || task.title.hasPrefix("先月のTry: ") {
+                                } else if task.type == .tryCarryOver {
                                     Text(task.title)
                                         .strikethrough(task.isCompleted)
                                         .foregroundColor(.blue)

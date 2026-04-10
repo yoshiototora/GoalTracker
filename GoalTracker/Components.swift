@@ -129,7 +129,6 @@ struct BulletInputSection: View {
     var items: [String]
     var placeholder: String = "..."
     
-    // AI用の変数を削除し、シンプルにしました
     var dataManager: GoalManager? = nil
     var onUpdate: ([String]) -> Void
     
@@ -208,9 +207,21 @@ struct CalendarGridView: View {
         }
     }
     
+    // 🔴 改善箇所：強制アンラップ（!）を排除し、安全に日付を生成する
     func generateDays() -> [Date?] {
-        let cal = Calendar.current; let start = cal.date(from: cal.dateComponents([.year, .month], from: displayDate))!; let range = cal.range(of: .day, in: .month, for: start)!; let firstDay = cal.component(.weekday, from: start)
-        var days: [Date?] = Array(repeating: nil, count: firstDay - 1); for i in 0..<range.count { days.append(cal.date(byAdding: .day, value: i, to: start)!) }; return days
+        let cal = Calendar.current
+        guard let start = cal.date(from: cal.dateComponents([.year, .month], from: displayDate)),
+              let range = cal.range(of: .day, in: .month, for: start) else { return [] }
+        
+        let firstDay = cal.component(.weekday, from: start)
+        var days: [Date?] = Array(repeating: nil, count: firstDay - 1)
+        
+        for i in 0..<range.count {
+            if let d = cal.date(byAdding: .day, value: i, to: start) {
+                days.append(d)
+            }
+        }
+        return days
     }
 }
 

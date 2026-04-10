@@ -80,21 +80,29 @@ struct MonthData: Codable {
     }
 }
 
+// 🔴 改善点：タスクの種類を定義
+enum TaskType: String, Codable, Equatable {
+    case normal
+    case dailyGoal
+    case tryCarryOver
+}
+
 struct Task: Identifiable, Equatable, Codable {
     let id: UUID
     var title: String
     var isCompleted: Bool
     var isYearlyReflection: Bool
+    var type: TaskType // 🔴 追加
     
-    init(id: UUID = UUID(), title: String, isCompleted: Bool = false, isYearlyReflection: Bool = false) {
+    init(id: UUID = UUID(), title: String, isCompleted: Bool = false, isYearlyReflection: Bool = false, type: TaskType = .normal) {
         self.id = id
         self.title = title
         self.isCompleted = isCompleted
         self.isYearlyReflection = isYearlyReflection
+        self.type = type
     }
 }
 
-// サブタスク用構造体
 struct SubTask: Identifiable, Codable, Equatable {
     let id: UUID
     var title: String
@@ -107,7 +115,6 @@ struct SubTask: Identifiable, Codable, Equatable {
     }
 }
 
-// 未来の自分（サブタスク対応版）
 struct FutureVision: Identifiable, Codable, Equatable {
     let id: UUID
     var title: String
