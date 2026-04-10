@@ -129,38 +129,18 @@ struct BulletInputSection: View {
     var items: [String]
     var placeholder: String = "..."
     
-    // 🌟 修正ポイント: dataManager を onUpdate の上に書く
-    var dataManager: AppDataManager? = nil
+    // AI用の変数を削除し、シンプルにしました
+    var dataManager: GoalManager? = nil
     var onUpdate: ([String]) -> Void
     
     @State private var t = ""
     @State private var s = false
-    @State private var showAIAlert = false
-    @State private var vagueTry = ""
-    @State private var isAILoading = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title).font(.caption).foregroundColor(.gray)
                 Spacer()
-                
-                // dataManager が渡されている時だけ AIボタンを表示
-                if let dm = dataManager {
-                    Button(action: { showAIAlert = true }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "sparkles")
-                            Text("AI具体化")
-                        }
-                        .font(.caption).bold()
-                        .foregroundColor(dm.dailyAICount > 0 ? .pink : .gray)
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(Color.pink.opacity(0.1))
-                        .cornerRadius(12)
-                    }
-                    .disabled(dm.dailyAICount <= 0 || isAILoading)
-                }
-                
                 Button(action: { s = true }) {
                     Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.blue)
                 }
@@ -178,9 +158,6 @@ struct BulletInputSection: View {
                     }.padding(.vertical, 8).padding(.horizontal, 12)
                 }
                 if items.isEmpty { Text(placeholder).font(.body).foregroundColor(Color(UIColor.placeholderText)).padding(12) }
-                if isAILoading {
-                    HStack { ProgressView().scaleEffect(0.8); Text("AIがタスクを生成中...").font(.caption).foregroundColor(.gray) }.padding(12)
-                }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .background(Color(.systemGray6))
@@ -192,24 +169,11 @@ struct BulletInputSection: View {
             Button("追加") { if !t.isEmpty { var n = items; n.append(t); onUpdate(n); t = "" } }
             Button("キャンセル", role: .cancel) { t = "" }
         }
-        .alert("AIでTryを具体化 (残り\(dataManager?.dailyAICount ?? 0)回)", isPresented: $showAIAlert) {
-            TextField("曖昧なTry (例: 早く寝る)", text: $vagueTry)
-            Button("具体化して追加") {
-                guard !vagueTry.isEmpty, let dm = dataManager else { return }
-                isAILoading = true
-                dm.convertTryToTasks(tryText: vagueTry) { newTrys in
-                    isAILoading = false
-                    if let trys = newTrys { var n = items; n.append(contentsOf: trys); onUpdate(n) }
-                    vagueTry = ""
-                }
-            }
-            Button("キャンセル", role: .cancel) { vagueTry = "" }
-        }
     }
 }
 
 struct CalendarGridView: View {
-    @ObservedObject var dataManager: AppDataManager; let displayDate: Date; @Binding var selectedDate: Date; @Binding var selectedTab: Int
+    @ObservedObject var dataManager: GoalManager; let displayDate: Date; @Binding var selectedDate: Date; @Binding var selectedTab: Int
     let cols = Array(repeating: GridItem(.flexible()), count: 7)
     var body: some View {
         let days = generateDays(); let today = Calendar.current.startOfDay(for: Date())
@@ -342,7 +306,6 @@ struct LuxuriousCompletionEffect: View {
     }
 }
 
-// 🌟 追加: 継続バッジのUI
 struct StreakBadgeView: View {
     let streak: Int
     

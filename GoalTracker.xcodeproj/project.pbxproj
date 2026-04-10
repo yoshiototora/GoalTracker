@@ -6,13 +6,30 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8ED3C5912F88CD89002C7E07 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 8ED3C5902F88CD89002C7E07 /* GoogleMobileAds */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		8EF30FEB2F7F97E100F5CEAD /* GoalTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GoalTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8ED3C5932F88D408002C7E07 /* Exceptions for "GoalTracker" folder in "GoalTracker" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8EF30FEA2F7F97E100F5CEAD /* GoalTracker */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8EF30FED2F7F97E100F5CEAD /* GoalTracker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8ED3C5932F88D408002C7E07 /* Exceptions for "GoalTracker" folder in "GoalTracker" target */,
+			);
 			path = GoalTracker;
 			sourceTree = "<group>";
 		};
@@ -23,6 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8ED3C5912F88CD89002C7E07 /* GoogleMobileAds in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +83,7 @@
 			);
 			name = GoalTracker;
 			packageProductDependencies = (
+				8ED3C5902F88CD89002C7E07 /* GoogleMobileAds */,
 			);
 			productName = GoalTracker;
 			productReference = 8EF30FEB2F7F97E100F5CEAD /* GoalTracker.app */;
@@ -94,6 +113,9 @@
 			);
 			mainGroup = 8EF30FE22F7F97E100F5CEAD;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8ED3C58F2F88CD89002C7E07 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8EF30FEC2F7F97E100F5CEAD /* Products */;
 			projectDirPath = "";
@@ -256,6 +278,8 @@
 				DEVELOPMENT_TEAM = 2DL22K4TF3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GoalTracker/Info.plist;
+				INFOPLIST_KEY_NSUserTrackingUsageDescription = "お客様に最適化された広告を表示するために使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -266,6 +290,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				"OTHER_LDFLAGS[arch=*]" = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.koki.GoalTracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -288,6 +313,8 @@
 				DEVELOPMENT_TEAM = 2DL22K4TF3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GoalTracker/Info.plist;
+				INFOPLIST_KEY_NSUserTrackingUsageDescription = "お客様に最適化された広告を表示するために使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -298,6 +325,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				"OTHER_LDFLAGS[arch=*]" = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.koki.GoalTracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -332,6 +360,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8ED3C58F2F88CD89002C7E07 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 13.2.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8ED3C5902F88CD89002C7E07 /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8ED3C58F2F88CD89002C7E07 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8EF30FE32F7F97E100F5CEAD /* Project object */;
 }

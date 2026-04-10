@@ -1,10 +1,14 @@
+//
+//  MainViews.swift
+//  GoalTracker
+//
+
 import SwiftUI
 import UIKit
 
 struct HomeView: View {
-    @ObservedObject var dataManager: AppDataManager
+    @ObservedObject var dataManager: GoalManager
     @State private var newTaskTitle = ""
-    @State private var showResetAlert = false
     
     var body: some View {
         NavigationView {
@@ -44,7 +48,7 @@ struct HomeView: View {
                                 } else if task.title.hasPrefix("昨日のTry: ") || task.title.hasPrefix("先週のTry: ") || task.title.hasPrefix("先月のTry: ") {
                                     Text(task.title)
                                         .strikethrough(task.isCompleted)
-                                        .foregroundColor(.blue) // Tryから来たタスクは青色で強調
+                                        .foregroundColor(.blue)
                                 } else {
                                     Text(task.title)
                                         .strikethrough(task.isCompleted)
@@ -72,7 +76,6 @@ struct HomeView: View {
             }
             .navigationTitle("今日のタスク")
             .onAppear {
-                // ホーム画面表示時にタスクを同期する
                 dataManager.syncAll(for: dataManager.selectedDate)
             }
             .toolbar {
@@ -93,9 +96,8 @@ struct StatBox: View {
 }
 
 struct ReflectionView: View {
-    @ObservedObject var dataManager: AppDataManager
+    @ObservedObject var dataManager: GoalManager
     @State private var reflectionType = 0
-    @State private var newFutureVision = ""
     @State private var showYearlyAnimation = false
     
     private var isSunday: Bool { Calendar.current.component(.weekday, from: dataManager.selectedDate) == 1 }
@@ -130,23 +132,22 @@ struct ReflectionView: View {
                 }
                 
                 TabView(selection: $reflectionType) {
-                    // 日次振り返り
+                    // 日次
                     ScrollView {
                         VStack(spacing: 15) {
                             ReflectionAchievementCard(title: "\(dataManager.getDailyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getDailyCompletionRate(for: dataManager.selectedDate), rate2: nil, rate3: nil, color2: .clear, color3: .clear)
                             
                             VStack(alignment: .leading, spacing: 10) {
-                                // 🌟 修正: minHeightを渡さずデフォルト値を使用、placeholderのみ指定
                                 TextEditorView(title: "Keep（できたこと、継続したいこと）", text: Binding(get: { note.keep }, set: { updateNote($0, f: .keep) }), placeholder: "例：集中できた時間帯を維持する")
                                 TextEditorView(title: "Problem（できなかったこと、課題）", text: Binding(get: { note.problem }, set: { updateNote($0, f: .problem) }), placeholder: "例：SNSを見すぎて作業できなかった")
                                 BulletInputSection(title: "Try（次回へのアクション）", items: note.tryList, placeholder: "例：朝はスマホを触らず作業開始する", dataManager: dataManager) { newList in
                                     var n = dataManager.getNote(for: dataManager.selectedDate); n.tryList = newList; dataManager.saveNote(n, for: dataManager.selectedDate)
-                                
                                 }
                             }.padding(.horizontal)
                         }.padding(.vertical)
                     }.tag(0)
                     
+                    // 週次
                     if isSunday {
                         ScrollView {
                             VStack(spacing: 15) {
@@ -170,7 +171,6 @@ struct ReflectionView: View {
                                     BulletInputSection(title: "来週のTry", items: weekData.tryList, placeholder: "例：帰宅後すぐ5分だけ作業を始めるルールにする", dataManager: dataManager) { newList in
                                         var d = dataManager.getWeekData(for: dataManager.selectedDate); d.tryList = newList; dataManager.saveWeekData(d, for: dataManager.selectedDate)
                                     }
-                                    // 🌟 修正: minHeightを先に、placeholderを後に記述
                                     TextEditorView(title: "今週の振り返り（自由記述）", text: Binding(get: { weekData.reflection }, set: { var d = weekData; d.reflection = $0; dataManager.saveWeekData(d, for: dataManager.selectedDate) }), minHeight: 120, placeholder: "今週の気づきや学びを自由に記録...")
                                     
                                 }.padding(.horizontal)
@@ -178,6 +178,7 @@ struct ReflectionView: View {
                         }.tag(1)
                     }
                     
+                    // 月次
                     if isLastDayOfMonth {
                         ScrollView {
                             VStack(spacing: 15) {
@@ -201,7 +202,6 @@ struct ReflectionView: View {
                                     BulletInputSection(title: "来月のTry", items: monthData.tryList, placeholder: "例：月の目標を「最重要3つ」に絞る", dataManager: dataManager) { newList in
                                         var d = dataManager.getMonthData(for: dataManager.selectedDate); d.tryList = newList; dataManager.saveMonthData(d, for: dataManager.selectedDate)
                                     }
-                                    // 🌟 修正: minHeightを先に、placeholderを後に記述
                                     TextEditorView(title: "今月の振り返り（自由記述）", text: Binding(get: { monthData.reflection }, set: { var d = monthData; d.reflection = $0; dataManager.saveMonthData(d, for: dataManager.selectedDate) }), minHeight: 120, placeholder: "今月の気づきや学びを自由に記録...")
                                     
                                     Divider().padding(.vertical, 8)
@@ -215,6 +215,7 @@ struct ReflectionView: View {
                         }.tag(2)
                     }
                     
+                    // 年次
                     if isDecember {
                         ZStack {
                             ScrollView {
@@ -265,7 +266,6 @@ struct ReflectionView: View {
                                                     VStack(alignment: .leading, spacing: 8) {
                                                         ForEach(vision.subTasks) { subTask in
                                                             HStack {
-                                                                // 🌟 修正: サブタスクをタップして直接チェックできるようにボタン化！
                                                                 Button(action: {
                                                                     withAnimation(.spring()) {
                                                                         dataManager.toggleSubTaskCompleted(visionId: vision.id, subTaskId: subTask.id)
@@ -273,10 +273,9 @@ struct ReflectionView: View {
                                                                 }) {
                                                                     Image(systemName: subTask.isCompleted ? "checkmark.square.fill" : "square")
                                                                         .foregroundColor(subTask.isCompleted ? .pink : .gray)
-                                                                        .font(.system(size: 16)) // 押しやすいように少しだけ大きくしました
+                                                                        .font(.system(size: 16))
                                                                 }
                                                                 .buttonStyle(PlainButtonStyle())
-                                                                // メイン目標が達成済みの時は、サブタスクのチェックを外せないようにロック
                                                                 .disabled(vision.isCompleted)
                                                                 
                                                                 Text(subTask.title)
@@ -287,13 +286,6 @@ struct ReflectionView: View {
                                                         }
                                                     }
                                                     .padding(.leading, 30)
-                                                }
-                                                
-                                                if isReadyToComplete && !vision.isCompleted {
-                                                    Text("✨ すべてのステップを完了しました！チェックして達成！")
-                                                        .font(.system(size: 10, weight: .bold))
-                                                        .foregroundColor(.orange)
-                                                        .padding(.leading, 30)
                                                 }
                                             }
                                             .padding()
@@ -327,7 +319,7 @@ struct ReflectionView: View {
 }
 
 struct CalendarView: View {
-    @ObservedObject var dataManager: AppDataManager; @Binding var selectedTab: Int
+    @ObservedObject var dataManager: GoalManager; @Binding var selectedTab: Int
     @State private var monthOffset: Int = 0
     
     private func displayDate(for offset: Int) -> Date {
@@ -345,13 +337,11 @@ struct CalendarView: View {
                     
                     ScrollView {
                         VStack(spacing: 15) {
-                            // 達成度カード
                             HStack(spacing: 10) {
                                 CompositeSummaryCard(title: "\(dataManager.getWeeklyTitle(for: dataManager.selectedDate))の達成度", rate1: dataManager.getWeeklyDailyAvgRate(for: dataManager.selectedDate), rate2: dataManager.getWeeklyGoalRate(for: dataManager.selectedDate), rate3: nil, color2: .orange, color3: .clear)
                                 CompositeSummaryCard(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の達成度", rate1: dataManager.getMonthlyDailyAvgRate(for: currentDisplayDate), rate2: dataManager.getMonthlyWeeklyGoalAvgRate(for: currentDisplayDate), rate3: dataManager.getMonthlyGoalRate(for: currentDisplayDate), color2: .orange, color3: .blue)
                             }.padding(.horizontal)
 
-                            // 🌟 追加: 過去からのバトン (Try) セクション
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
                                     Image(systemName: "arrowshape.turn.up.right.fill").foregroundColor(.blue).font(.caption)
@@ -361,11 +351,8 @@ struct CalendarView: View {
                                 
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 10) {
-                                        // 先月からのバトン
                                         BatonTag(title: "先月より", items: dataManager.getLastMonthlyTryList(for: currentDisplayDate), color: .blue)
-                                        // 先週からのバトン
                                         BatonTag(title: "先週より", items: dataManager.getLastWeeklyTryList(for: dataManager.selectedDate), color: .orange)
-                                        // 昨日からのバトン
                                         BatonTag(title: "昨日より", items: dataManager.getYesterdayTryList(for: dataManager.selectedDate), color: .green)
                                     }
                                     .padding(.horizontal)
@@ -373,7 +360,6 @@ struct CalendarView: View {
                             }
                             .padding(.vertical, 5)
 
-                            // 目標設定セクション
                             VStack(spacing: 10) {
                                 GoalListSection(title: "\(dataManager.getMonthlyTitle(for: currentDisplayDate))の月次目標", iconColor: .blue, goals: monthData.monthlyGoals, showCheckboxes: false, onUpdate: { var d = dataManager.getMonthData(for: currentDisplayDate); d.monthlyGoals = $0; dataManager.saveMonthData(d, for: currentDisplayDate); dataManager.syncAll(for: dataManager.selectedDate) }) { copyPrev(prev: dataManager.getMonthData(for: Calendar.current.date(byAdding: .month, value: -1, to: currentDisplayDate) ?? currentDisplayDate).monthlyGoals, field: .monthly, date: currentDisplayDate) }
                                 
@@ -398,7 +384,6 @@ struct CalendarView: View {
         }
     }
 
-    
     enum F { case monthly, weekly, daily }
     func copyPrev(prev: [Goal], field: F, date: Date) {
         var curr: [Goal]
@@ -412,7 +397,7 @@ struct CalendarView: View {
 }
 
 struct SettingsView: View {
-    @ObservedObject var dataManager: AppDataManager; @State private var isTutorial = false
+    @ObservedObject var dataManager: GoalManager; @State private var isTutorial = false
     var body: some View {
         NavigationView {
             Form {
@@ -434,7 +419,7 @@ struct SettingsView: View {
 }
 
 struct FutureVisionView: View {
-    @ObservedObject var dataManager: AppDataManager
+    @ObservedObject var dataManager: GoalManager
     @State private var newVisionTitle = ""
     
     var body: some View {
@@ -500,13 +485,10 @@ struct BatonTag: View {
 
 struct FutureVisionRow: View {
     let vision: FutureVision
-    @ObservedObject var dataManager: AppDataManager
+    @ObservedObject var dataManager: GoalManager
     
     @State private var isExpanded = false
     @State private var newSubTaskText = ""
-    
-    // 🌟 追加: ローディング中かどうかを判定する変数
-    @State private var isAILoading = false
     
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
@@ -539,46 +521,13 @@ struct FutureVisionRow: View {
                 
                 HStack {
                     Image(systemName: "arrow.turn.down.right").foregroundColor(.gray).font(.caption)
-                    TextField("具体的なステップ", text: $newSubTaskText).textFieldStyle(PlainTextFieldStyle()).onSubmit { addSubTask() }
+                    TextField("具体的なステップを追加...", text: $newSubTaskText).textFieldStyle(PlainTextFieldStyle()).onSubmit { addSubTask() }
                     Button(action: { addSubTask() }) {
                         Image(systemName: "plus.circle.fill").foregroundColor(newSubTaskText.isEmpty ? .gray.opacity(0.3) : .pink).font(.system(size: 24))
                     }
                     .disabled(newSubTaskText.isEmpty).buttonStyle(PlainButtonStyle())
                 }
                 .padding(.top, 5)
-                
-                // 🌟 修正: AIボタンにローディングアニメーションを追加
-                Button(action: {
-                    if dataManager.dailyAICount > 0 {
-                        isAILoading = true // ボタンを押したらローディング開始
-                        dataManager.generateSubTasksFromAI(for: vision.id, goalTitle: vision.title) {
-                            isAILoading = false // 終わりの合図が来たらローディング終了
-                        }
-                    }
-                }) {
-                    HStack {
-                        // ローディング中はくるくるを表示
-                        if isAILoading {
-                            ProgressView().scaleEffect(0.8).padding(.trailing, 4)
-                            Text("AIがステップを生成中...")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                        } else {
-                            Image(systemName: "sparkles")
-                            if dataManager.dailyAICount > 0 {
-                                Text("AIで具体的なステップを提案（残り \(dataManager.dailyAICount) 回）")
-                                    .font(.subheadline)
-                            } else {
-                                Text("本日のAI使用上限（15回）に達しました")
-                                    .font(.subheadline)
-                            }
-                        }
-                    }
-                    .foregroundColor(dataManager.dailyAICount > 0 && !isAILoading ? .pink : .gray)
-                }
-                .disabled(dataManager.dailyAICount <= 0 || isAILoading) // ローディング中は連打できないようにロック
-                .padding(.top, 8)
-                .buttonStyle(PlainButtonStyle())
             }
             .padding(.leading, 10)
         } label: {

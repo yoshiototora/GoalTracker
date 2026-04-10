@@ -1,5 +1,5 @@
 //
-//  AppDataManager.swift
+//  GoalManager.swift
 //  GoalTracker
 //
 
@@ -7,7 +7,7 @@ import SwiftUI
 import Combine
 import UserNotifications
 
-class AppDataManager: ObservableObject {
+class GoalManager: ObservableObject {
     @Published var reflections: [String: DailyNote] = [:]
     @Published var weekConfigs: [String: WeekData] = [:]
     @Published var monthConfigs: [String: MonthData] = [:]
@@ -15,11 +15,8 @@ class AppDataManager: ObservableObject {
     @Published var appSettings: AppSettings = AppSettings()
     @Published var futureVisions: [FutureVision] = []
     @Published var userStats: UserStats = UserStats()
-    @Published var dailyAICount: Int = 15
-    private let aiCountKey = "ai_count_storage"
-    private let aiDateKey = "ai_date_storage"
-    private let statsKey = "user_stats_storage"
     
+    private let statsKey = "user_stats_storage"
     private let futureVisionsKey = "future_visions_storage"
     private let reflectionsKey = "reflections_storage"
     private let weekConfigsKey = "week_configs_storage"
@@ -37,7 +34,6 @@ class AppDataManager: ObservableObject {
     init() {
         loadFromDisk()
         loadFutureVisions()
-        checkAndResetAICount()
     }
     
     func resetAllData() {
@@ -142,11 +138,11 @@ class AppDataManager: ObservableObject {
     }
     
     func getTryExecutionCount(for date: Date, isWeekly: Bool) -> Int {
-            let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date)
-            return dates.reduce(0) { sum, d in
-                sum + getNote(for: d).tasks.filter { $0.isCompleted && ($0.title.hasPrefix("昨日のTry: ") || $0.title.hasPrefix("先週のTry: ") || $0.title.hasPrefix("先月のTry: ")) }.count
-            }
+        let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date)
+        return dates.reduce(0) { sum, d in
+            sum + getNote(for: d).tasks.filter { $0.isCompleted && ($0.title.hasPrefix("昨日のTry: ") || $0.title.hasPrefix("先週のTry: ") || $0.title.hasPrefix("先月のTry: ")) }.count
         }
+    }
     
     func getComparisonText(for date: Date, isWeekly: Bool) -> String {
         let currentRate = isWeekly ? getWeeklyDailyAvgRate(for: date) : getMonthlyDailyAvgRate(for: date)
@@ -222,20 +218,17 @@ class AppDataManager: ObservableObject {
     }
     
     func getLastWeeklyTryList(for date: Date) -> [String] {
-            let cal = Calendar.current
-            var checkDate = date
-            // dateより前の直近の日曜日を探す
-            while cal.component(.weekday, from: checkDate) != 1 {
-                checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
-            }
-            // もしdateが日曜日当日の場合、今日のTryは「来週」用なので、タスクには「先週の日曜日」のTryを反映する
-            if cal.isDate(checkDate, inSameDayAs: date) {
-                checkDate = cal.date(byAdding: .day, value: -7, to: checkDate) ?? checkDate
-            }
-            return getWeekData(for: checkDate).tryList
+        let cal = Calendar.current
+        var checkDate = date
+        while cal.component(.weekday, from: checkDate) != 1 {
+            checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
         }
+        if cal.isDate(checkDate, inSameDayAs: date) {
+            checkDate = cal.date(byAdding: .day, value: -7, to: checkDate) ?? checkDate
+        }
+        return getWeekData(for: checkDate).tryList
+    }
 
-    // ▼ 追加: 先月末に設定された月次Tryを取得
     func getLastMonthlyTryList(for date: Date) -> [String] {
         let cal = Calendar.current
         let comp = cal.dateComponents([.year, .month], from: date)
@@ -247,26 +240,15 @@ class AppDataManager: ObservableObject {
     func syncGoalsToTasks(for date: Date) {
         var note = getNote(for: date)
         let monthData = getMonthData(for: date)
-        
         let currentDailyGoalTitles = monthData.dailyGoals.map { "日次: " + $0.title }
-        
-        // ① 昨日のTry
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
         let yesterdayTryTitles = getNote(for: yesterday).tryList.filter { !$0.isEmpty }.map { "昨日のTry: " + $0 }
-        
-        // ② 先週のTry（直近の日曜日のデータ）
         let lastWeekTryTitles = getLastWeeklyTryList(for: date).filter { !$0.isEmpty }.map { "先週のTry: " + $0 }
-        
-        // ③ 先月のTry（先月末のデータ）
         let lastMonthTryTitles = getLastMonthlyTryList(for: date).filter { !$0.isEmpty }.map { "先月のTry: " + $0 }
-        
-        // 全Tryを結合
         let allTryTitles = yesterdayTryTitles + lastWeekTryTitles + lastMonthTryTitles
         
         note.tasks.removeAll { task in
-            if task.title.hasPrefix("日次: ") && !task.isCompleted {
-                return !currentDailyGoalTitles.contains(task.title)
-            }
+            if task.title.hasPrefix("日次: ") && !task.isCompleted { return !currentDailyGoalTitles.contains(task.title) }
             if (task.title.hasPrefix("昨日のTry: ") || task.title.hasPrefix("先週のTry: ") || task.title.hasPrefix("先月のTry: ")) && !task.isCompleted {
                 return !allTryTitles.contains(task.title)
             }
@@ -279,7 +261,6 @@ class AppDataManager: ObservableObject {
         for title in allTryTitles {
             if !note.tasks.contains(where: { $0.title == title }) { note.tasks.append(Task(title: title)) }
         }
-        
         saveNote(note, for: date)
     }
 
@@ -289,9 +270,7 @@ class AppDataManager: ObservableObject {
         let currentWeeklyGoalTitles = monthData.weeklyGoals.map { $0.title }
         
         weekData.goals.removeAll { goal in
-            if !goal.isCompleted {
-                return !currentWeeklyGoalTitles.contains(goal.title)
-            }
+            if !goal.isCompleted { return !currentWeeklyGoalTitles.contains(goal.title) }
             return false
         }
         
@@ -372,159 +351,4 @@ class AppDataManager: ObservableObject {
             saveFutureVisions()
         }
     }
-    
-    func refundAICount() {
-            if dailyAICount < 15 {
-                dailyAICount += 1
-                UserDefaults.standard.set(dailyAICount, forKey: aiCountKey)
-            }
-        }
-    
-// ▼ 修正: completion（終わった時の合図）を受け取れるように追加
-    func generateSubTasksFromAI(for visionId: UUID, goalTitle: String, completion: @escaping () -> Void = {}) {
-        if dailyAICount <= 0 { completion(); return }
-        decreaseAICount()
-
-        let apiKey = Secrets.geminiAPIKey
-        let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=\(apiKey)"
-        guard let url = URL(string: endpoint) else { refundAICount(); completion(); return }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let prompt = "あなたは目標達成アシスタントです。「\(goalTitle)」という目標を達成するための具体的なステップ（サブタスク）を3〜5つ提案してください。タスクとして管理しやすいよう、各ステップは必ず15〜20文字程度の非常に短い簡潔な文章にしてください。回答は必ず以下のJSON配列形式（文字列のリスト）のみで出力し、挨拶や解説などの他の文章は一切含めないでください。\n例: [\"英語のテキストを買う\", \"毎日10分リスニング\", \"ビザの要件を調べる\"]"
-
-        let requestBody: [String: Any] = [
-            "contents": [ ["role": "user", "parts": [ ["text": prompt] ] ] ]
-        ]
-
-        request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
-
-        let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            guard let self = self else { return }
-            
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                DispatchQueue.main.async { self.refundAICount(); completion() }
-                return
-            }
-
-            guard let data = data, error == nil else {
-                DispatchQueue.main.async { self.refundAICount(); completion() }
-                return
-            }
-
-            DispatchQueue.main.async {
-                do {
-                    let geminiResponse = try JSONDecoder().decode(GeminiResponse.self, from: data)
-                    if var aiText = geminiResponse.candidates.first?.content.parts.first?.text {
-                        let backticks = String(repeating: "`", count: 3)
-                        aiText = aiText.replacingOccurrences(of: backticks + "json", with: "")
-                        aiText = aiText.replacingOccurrences(of: backticks, with: "")
-                        aiText = aiText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        
-                        if let jsonData = aiText.data(using: .utf8),
-                           let suggestedTasks = try? JSONDecoder().decode([String].self, from: jsonData) {
-                            for taskTitle in suggestedTasks {
-                                self.addSubTask(to: visionId, title: taskTitle)
-                            }
-                        } else {
-                            self.refundAICount()
-                        }
-                    } else {
-                        self.refundAICount()
-                    }
-                } catch {
-                    self.refundAICount()
-                }
-                // 🌟 処理が終わったら必ず合図を出す
-                completion()
-            }
-        }
-        task.resume()
-    }
-
-        // ▼ 追加・修正: Try具体化のAIメソッド (1.5-flashに変更 ＆ エラーハンドリング)
-        func convertTryToTasks(tryText: String, completion: @escaping ([String]?) -> Void) {
-            if dailyAICount <= 0 { completion(nil); return }
-            decreaseAICount()
-
-            let apiKey = Secrets.geminiAPIKey
-            let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=\(apiKey)"
-            guard let url = URL(string: endpoint) else { refundAICount(); completion(nil); return }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-            let prompt = "あなたは目標達成アシスタントです。「\(tryText)」という曖昧な改善案（Try）を、明日から実行可能な具体的な日次タスク（15文字以内の簡潔な行動）に1〜3つに分解・変換してください。回答は必ず以下のJSON配列形式のみで出力し、他の文章は一切含めないでください。\n例: [\"23時にスマホのアラームをかける\", \"寝る前に本を5ページ読む\"]"
-
-            let requestBody: [String: Any] = [
-                "contents": [ ["role": "user", "parts": [ ["text": prompt] ] ] ]
-            ]
-
-            request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
-
-            URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-                guard let self = self else { return }
-                
-                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                    DispatchQueue.main.async { self.refundAICount(); completion(nil) }
-                    return
-                }
-
-                guard let data = data, error == nil else {
-                    DispatchQueue.main.async { self.refundAICount(); completion(nil) }
-                    return
-                }
-                
-                DispatchQueue.main.async {
-                    do {
-                        let geminiResponse = try JSONDecoder().decode(GeminiResponse.self, from: data)
-                        if var aiText = geminiResponse.candidates.first?.content.parts.first?.text {
-                            let backticks = String(repeating: "`", count: 3)
-                            aiText = aiText.replacingOccurrences(of: backticks + "json", with: "")
-                            aiText = aiText.replacingOccurrences(of: backticks, with: "")
-                            aiText = aiText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if let jsonData = aiText.data(using: .utf8), let trys = try? JSONDecoder().decode([String].self, from: jsonData) {
-                                completion(trys)
-                            } else {
-                                self.refundAICount(); completion(nil)
-                            }
-                        } else {
-                            self.refundAICount(); completion(nil)
-                        }
-                    } catch {
-                        self.refundAICount(); completion(nil)
-                    }
-                }
-            }.resume()
-        }
-
-    func checkAndResetAICount() {
-            let todayStr = Self.ymdFormatter.string(from: Date())
-            let savedDate = UserDefaults.standard.string(forKey: aiDateKey) ?? ""
-
-            if todayStr != savedDate {
-                // 日付が変わっている（または初回起動）場合は15回にリセット
-                dailyAICount = 15
-                UserDefaults.standard.set(todayStr, forKey: aiDateKey)
-                UserDefaults.standard.set(dailyAICount, forKey: aiCountKey)
-            } else {
-                // 今日すでに使っていれば、保存された回数を読み込む
-                if UserDefaults.standard.object(forKey: aiCountKey) != nil {
-                    dailyAICount = UserDefaults.standard.integer(forKey: aiCountKey)
-                } else {
-                    dailyAICount = 15
-                }
-            }
-        }
-
-        func decreaseAICount() {
-            if dailyAICount > 0 {
-                dailyAICount -= 1
-                UserDefaults.standard.set(dailyAICount, forKey: aiCountKey)
-            }
-        }
-    }
-
+}
