@@ -1,42 +1,32 @@
-//
-//  ContentView.swift
-//  GoalTracker
-//
-
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var dataManager = GoalManager()
+    @StateObject private var viewModel = GoalViewModel()
     @State private var selectedTab = 0
     
     var body: some View {
         VStack(spacing: 0) {
             TabView(selection: $selectedTab) {
-                HomeView(dataManager: dataManager)
+                HomeView(viewModel: viewModel)
                     .tabItem { Image(systemName: "house"); Text("ホーム") }.tag(0)
                 
-                ReflectionView(dataManager: dataManager)
+                ReflectionView(viewModel: viewModel)
                     .tabItem { Image(systemName: "square.and.pencil"); Text("振り返り") }.tag(1)
                 
-                CalendarView(dataManager: dataManager, selectedTab: $selectedTab)
+                // 👇 カレンダーと未来の自分を復活！
+                CalendarView(viewModel: viewModel, selectedTab: $selectedTab)
                     .tabItem { Image(systemName: "calendar"); Text("カレンダー") }.tag(2)
                 
-                FutureVisionView(dataManager: dataManager)
+                FutureVisionView(viewModel: viewModel)
                     .tabItem { Image(systemName: "sparkles"); Text("未来の自分") }.tag(3)
                 
-                SettingsView(dataManager: dataManager)
+                SettingsView(viewModel: viewModel)
                     .tabItem { Image(systemName: "gearshape"); Text("設定") }.tag(4)
             }
-            
-            // 📱 全画面の共通下部メニューの上に広告を配置
             
             AdBannerView()
                 .frame(width: 320, height: 50)
                 .background(Color(UIColor.systemBackground))
         }
     }
-}
-
-#Preview {
-    ContentView()
 }

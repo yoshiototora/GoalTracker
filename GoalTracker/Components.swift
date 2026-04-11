@@ -66,16 +66,13 @@ struct CompositeSummaryCard: View {
                 }.frame(width: 35, height: 35)
             }
         }
-        .padding(8)
-        .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 5)
+        .padding(8).frame(maxWidth: .infinity).background(Color(.systemBackground)).cornerRadius(12).shadow(color: Color.black.opacity(0.05), radius: 5)
     }
 }
 
 struct GoalListSection: View {
-    let title: String; let iconColor: Color; var goals: [Goal]; var showCheckboxes: Bool; var onUpdate: ([Goal]) -> Void; var onCopy: (() -> Void)? = nil
+    let title: String; let iconColor: Color; var goals: [Goal]; var showCheckboxes: Bool
+    var onUpdate: ([Goal]) -> Void; var onCopy: (() -> Void)? = nil
     @State private var temp = ""; @State private var show = false
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -90,32 +87,22 @@ struct GoalListSection: View {
                 HStack {
                     if showCheckboxes {
                         Image(systemName: goal.isCompleted ? "checkmark.circle.fill" : "circle").foregroundColor(goal.isCompleted ? .green : .gray)
-                            .onTapGesture {
-                                var newGoals = goals
-                                newGoals[index].isCompleted.toggle()
-                                onUpdate(newGoals)
-                            }
-                    }
-                    else { Text("・").foregroundColor(iconColor) }
+                            .onTapGesture { var newGoals = goals; newGoals[index].isCompleted.toggle(); onUpdate(newGoals) }
+                    } else { Text("・").foregroundColor(iconColor) }
                     Text(goal.title).font(.subheadline).strikethrough(showCheckboxes && goal.isCompleted); Spacer()
-                    Button(action: {
-                        var newGoals = goals
-                        newGoals.remove(at: index)
-                        onUpdate(newGoals)
-                    }) { Image(systemName: "xmark.circle").foregroundColor(.gray) }
+                    Button(action: { var newGoals = goals; newGoals.remove(at: index); onUpdate(newGoals) }) { Image(systemName: "xmark.circle").foregroundColor(.gray) }
                 }.padding(.vertical, 1)
             }
         }.padding(10).background(Color(.systemBackground)).cornerRadius(8).shadow(radius: 1)
         .alert("追加", isPresented: $show) {
-            TextField("...", text: $temp); Button("キャンセル", role: .cancel) { temp = "" }; Button("追加") { if !temp.isEmpty { var n = goals; n.append(Goal(title: temp)); onUpdate(n); temp = "" } }
+            TextField("...", text: $temp); Button("キャンセル", role: .cancel) { temp = "" }
+            Button("追加") { if !temp.isEmpty { var n = goals; n.append(Goal(title: temp)); onUpdate(n); temp = "" } }
         }
     }
 }
 
 struct TextEditorView: View {
-    let title: String; @Binding var text: String; var minHeight: CGFloat = 60
-    var placeholder: String = "入力..."
-    
+    let title: String; @Binding var text: String; var minHeight: CGFloat = 60; var placeholder: String = "入力..."
     var body: some View {
         VStack(alignment: .leading) {
             Text(title).font(.caption).foregroundColor(.gray)
@@ -125,55 +112,34 @@ struct TextEditorView: View {
 }
 
 struct BulletInputSection: View {
-    let title: String
-    var items: [String]
-    var placeholder: String = "..."
-    
-    var dataManager: GoalManager? = nil
+    let title: String; var items: [String]; var placeholder: String = "..."
     var onUpdate: ([String]) -> Void
-    
-    @State private var t = ""
-    @State private var s = false
-    
+    @State private var t = ""; @State private var s = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title).font(.caption).foregroundColor(.gray)
-                Spacer()
-                Button(action: { s = true }) {
-                    Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.blue)
-                }
-            }
-            
+            HStack { Text(title).font(.caption).foregroundColor(.gray); Spacer(); Button(action: { s = true }) { Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.blue) } }
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(items.indices, id: \.self) { index in
                     HStack(alignment: .top, spacing: 4) {
-                        Text("・").font(.body).foregroundColor(.secondary)
-                        Text(items[index]).font(.body)
-                        Spacer()
-                        Button(action: { var n = items; n.remove(at: index); onUpdate(n) }) {
-                            Image(systemName: "xmark.circle.fill").foregroundColor(Color.gray.opacity(0.5))
-                        }
+                        Text("・").font(.body).foregroundColor(.secondary); Text(items[index]).font(.body); Spacer()
+                        Button(action: { var n = items; n.remove(at: index); onUpdate(n) }) { Image(systemName: "xmark.circle.fill").foregroundColor(Color.gray.opacity(0.5)) }
                     }.padding(.vertical, 8).padding(.horizontal, 12)
                 }
                 if items.isEmpty { Text(placeholder).font(.body).foregroundColor(Color(UIColor.placeholderText)).padding(12) }
-            }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .background(Color(.systemGray6))
-            .cornerRadius(8)
-            .onTapGesture { s = true }
+            }.frame(maxWidth: .infinity, alignment: .topLeading).background(Color(.systemGray6)).cornerRadius(8).onTapGesture { s = true }
         }
         .alert("\(title)を追加", isPresented: $s) {
-            TextField(placeholder, text: $t)
+            TextField(placeholder, text: $t); Button("キャンセル", role: .cancel) { t = "" }
             Button("追加") { if !t.isEmpty { var n = items; n.append(t); onUpdate(n); t = "" } }
-            Button("キャンセル", role: .cancel) { t = "" }
         }
     }
 }
 
 struct CalendarGridView: View {
-    @ObservedObject var dataManager: GoalManager; let displayDate: Date; @Binding var selectedDate: Date; @Binding var selectedTab: Int
+    @ObservedObject var viewModel: GoalViewModel
+    let displayDate: Date; @Binding var selectedDate: Date; @Binding var selectedTab: Int
     let cols = Array(repeating: GridItem(.flexible()), count: 7)
+    
     var body: some View {
         let days = generateDays(); let today = Calendar.current.startOfDay(for: Date())
         LazyVGrid(columns: cols, spacing: 8) {
@@ -190,15 +156,13 @@ struct CalendarGridView: View {
             }
         }.padding()
     }
-    func rate(_ d: Date) -> Double { dataManager.getDailyCompletionRate(for: d) }
     
+    func rate(_ d: Date) -> Double { viewModel.getDailyCompletionRate(for: d) }
     func getCol(_ d: Date) -> Color {
-        let r = rate(d); let note = dataManager.getNote(for: d)
+        let r = rate(d); let note = viewModel.getNote(for: d)
         let hasReflection = !note.keep.isEmpty || !note.problem.isEmpty || note.tryList.contains { !$0.isEmpty }
-        
         if r == 0 && !hasReflection { return Color(.systemGray6) }
         if r == 0 { return Color.yellow.opacity(0.3) }
-        
         switch r {
         case ..<0.4: return Color(red: 0.65, green: 0.9, blue: 0.65)
         case 0.4..<0.75: return Color(red: 0.3, green: 0.75, blue: 0.3)
@@ -206,145 +170,44 @@ struct CalendarGridView: View {
         default: return Color(red: 0.05, green: 0.35, blue: 0.15)
         }
     }
-    
-    // 🔴 改善箇所：強制アンラップ（!）を排除し、安全に日付を生成する
     func generateDays() -> [Date?] {
         let cal = Calendar.current
-        guard let start = cal.date(from: cal.dateComponents([.year, .month], from: displayDate)),
-              let range = cal.range(of: .day, in: .month, for: start) else { return [] }
-        
+        guard let start = cal.date(from: cal.dateComponents([.year, .month], from: displayDate)), let range = cal.range(of: .day, in: .month, for: start) else { return [] }
         let firstDay = cal.component(.weekday, from: start)
         var days: [Date?] = Array(repeating: nil, count: firstDay - 1)
-        
-        for i in 0..<range.count {
-            if let d = cal.date(byAdding: .day, value: i, to: start) {
-                days.append(d)
-            }
-        }
+        for i in 0..<range.count { if let d = cal.date(byAdding: .day, value: i, to: start) { days.append(d) } }
         return days
     }
 }
 
 struct LuxuriousCompletionEffect: View {
-    let completedCount: Int
-    @State private var opacities: [Double] = Array(repeating: 0.0, count: 42)
-    @State private var showConfetti = false
-    @State private var showText = false
-    
+    let completedCount: Int; @State private var opacities: [Double] = Array(repeating: 0.0, count: 42); @State private var showConfetti = false; @State private var showText = false
     let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
-    
     var body: some View {
         ZStack {
-            if completedCount >= 6 {
-                Color.yellow.opacity(showText ? 0.15 : 0.0)
-                    .ignoresSafeArea()
-            }
-            
-            LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(0..<42, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(blockColor(for: index))
-                        .aspectRatio(1, contentMode: .fit)
-                        .opacity(opacities[index])
-                }
-            }
-            .padding(40)
-            
-            if completedCount >= 3 {
-                ForEach(0..<30, id: \.self) { i in
-                    Circle()
-                        .fill(confettiColor(for: i))
-                        .frame(width: CGFloat.random(in: 6...12))
-                        .offset(
-                            x: showConfetti ? CGFloat.random(in: -180...180) : 0,
-                            y: showConfetti ? CGFloat.random(in: -250...250) : 0
-                        )
-                        .opacity(showConfetti ? 0 : 1)
-                        .scaleEffect(showConfetti ? CGFloat.random(in: 0.5...1.5) : 0)
-                }
-            }
-            
-            if completedCount >= 6 {
-                VStack {
-                    Text("✨ AMAZING! ✨")
-                        .font(.system(size: 40, weight: .black, design: .rounded))
-                        .foregroundColor(.yellow)
-                        .shadow(color: .orange, radius: 5, x: 0, y: 2)
-                    Text("未来の自分に到達！")
-                        .font(.title2).bold()
-                        .foregroundColor(.orange)
-                }
-                .scaleEffect(showText ? 1.0 : 0.0)
-                .opacity(showText ? 1.0 : 0.0)
-            }
-        }
-        .onAppear {
-            for i in 0..<42 {
-                withAnimation(.easeOut(duration: 0.5).delay(Double.random(in: 0...1.0))) { opacities[i] = 1.0 }
-                withAnimation(.easeIn(duration: 0.5).delay(Double.random(in: 1.5...2.5))) { opacities[i] = 0.0 }
-            }
-            
-            if completedCount >= 3 {
-                withAnimation(.easeOut(duration: 1.0).delay(0.2)) {
-                    showConfetti = true
-                }
-            }
-            
-            if completedCount >= 6 {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.6).delay(0.5)) {
-                    showText = true
-                }
-                withAnimation(.easeIn(duration: 0.5).delay(2.0)) {
-                    showText = false
-                }
-            }
-        }
-        .allowsHitTesting(false)
+            if completedCount >= 6 { Color.yellow.opacity(showText ? 0.15 : 0.0).ignoresSafeArea() }
+            LazyVGrid(columns: columns, spacing: 6) { ForEach(0..<42, id: \.self) { index in RoundedRectangle(cornerRadius: 4).fill(blockColor(for: index)).aspectRatio(1, contentMode: .fit).opacity(opacities[index]) } }.padding(40)
+            if completedCount >= 3 { ForEach(0..<30, id: \.self) { i in Circle().fill(confettiColor(for: i)).frame(width: CGFloat.random(in: 6...12)).offset(x: showConfetti ? CGFloat.random(in: -180...180) : 0, y: showConfetti ? CGFloat.random(in: -250...250) : 0).opacity(showConfetti ? 0 : 1).scaleEffect(showConfetti ? CGFloat.random(in: 0.5...1.5) : 0) } }
+            if completedCount >= 6 { VStack { Text("✨ AMAZING! ✨").font(.system(size: 40, weight: .black, design: .rounded)).foregroundColor(.yellow).shadow(color: .orange, radius: 5, x: 0, y: 2); Text("未来の自分に到達！").font(.title2).bold().foregroundColor(.orange) }.scaleEffect(showText ? 1.0 : 0.0).opacity(showText ? 1.0 : 0.0) }
+        }.onAppear {
+            for i in 0..<42 { withAnimation(.easeOut(duration: 0.5).delay(Double.random(in: 0...1.0))) { opacities[i] = 1.0 }; withAnimation(.easeIn(duration: 0.5).delay(Double.random(in: 1.5...2.5))) { opacities[i] = 0.0 } }
+            if completedCount >= 3 { withAnimation(.easeOut(duration: 1.0).delay(0.2)) { showConfetti = true } }
+            if completedCount >= 6 { withAnimation(.spring(response: 0.5, dampingFraction: 0.6).delay(0.5)) { showText = true }; withAnimation(.easeIn(duration: 0.5).delay(2.0)) { showText = false } }
+        }.allowsHitTesting(false)
     }
-    
-    func blockColor(for index: Int) -> Color {
-        if completedCount >= 6 { return .yellow }
-        if completedCount >= 3 {
-            let colors: [Color] = [.pink, .orange, .purple, .red]
-            return colors[index % colors.count]
-        }
-        return Color(red: 0.15, green: 0.55, blue: 0.15)
-    }
-    
-    func confettiColor(for index: Int) -> Color {
-        let colors: [Color] = [.yellow, .pink, .orange, .mint, .cyan]
-        return colors[index % colors.count]
-    }
+    func blockColor(for index: Int) -> Color { if completedCount >= 6 { return .yellow }; if completedCount >= 3 { let c: [Color] = [.pink, .orange, .purple, .red]; return c[index % c.count] }; return Color(red: 0.15, green: 0.55, blue: 0.15) }
+    func confettiColor(for index: Int) -> Color { let c: [Color] = [.yellow, .pink, .orange, .mint, .cyan]; return c[index % c.count] }
 }
 
 struct StreakBadgeView: View {
     let streak: Int
-    
     var body: some View {
         if streak > 0 {
             HStack(spacing: 8) {
-                Image(systemName: "flame.fill")
-                    .foregroundColor(streak >= 7 ? .red : .orange)
-                
-                Text("\(streak)日連続タスク達成中！")
-                    .font(.subheadline)
-                    .bold()
-                    .foregroundColor(streak >= 7 ? .red : .orange)
-                
-                if streak >= 30 {
-                    Image(systemName: "crown.fill").foregroundColor(.yellow)
-                } else if streak >= 7 {
-                    Image(systemName: "medal.fill").foregroundColor(.yellow)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.orange.opacity(0.1))
-            )
-            .padding(.horizontal)
+                Image(systemName: "flame.fill").foregroundColor(streak >= 7 ? .red : .orange)
+                Text("\(streak)日連続達成中！").font(.subheadline).bold().foregroundColor(streak >= 7 ? .red : .orange)
+                if streak >= 30 { Image(systemName: "crown.fill").foregroundColor(.yellow) } else if streak >= 7 { Image(systemName: "medal.fill").foregroundColor(.yellow) }
+            }.padding(.horizontal, 16).padding(.vertical, 10).frame(maxWidth: .infinity).background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1))).padding(.horizontal)
         }
     }
 }
