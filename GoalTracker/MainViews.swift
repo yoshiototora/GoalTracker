@@ -24,7 +24,7 @@ struct HomeView: View {
                 Text(viewModel.dateKey(viewModel.selectedDate)).font(.caption).foregroundColor(.gray)
                 StreakBadgeView(streak: viewModel.currentDailyStreak)
                 HStack {
-                    TextField("一回限りのタスク...", text: $newTaskTitle)
+                    TextField("今日だけのタスク...", text: $newTaskTitle)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .focused($isInputFocused)
                         .onSubmit { addTask() }
@@ -288,7 +288,7 @@ struct CalendarView: View {
                             }.padding(.horizontal)
                             
                             VStack(alignment: .leading, spacing: 8) {
-                                HStack { Image(systemName: "arrowshape.turn.up.right.fill").foregroundColor(.blue).font(.caption); Text("過去からのバトン").font(.caption).bold().foregroundColor(.secondary) }.padding(.horizontal)
+                                HStack { Image(systemName: "arrowshape.turn.up.right.fill").foregroundColor(.blue).font(.caption); Text("前回のTry").font(.caption).bold().foregroundColor(.secondary) }.padding(.horizontal)
                                 ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 10) { BatonTag(title: "先月より", items: viewModel.getLastMonthlyTryList(for: currentDisplayDate), color: .blue); BatonTag(title: "先週より", items: viewModel.getLastWeeklyTryList(for: viewModel.selectedDate), color: .orange); BatonTag(title: "昨日より", items: viewModel.getYesterdayTryList(for: viewModel.selectedDate), color: .green) }.padding(.horizontal) }
                             }.padding(.vertical, 5)
                             
@@ -681,7 +681,7 @@ struct FutureVisionView: View {
     var body: some View {
         NavigationView {
             VStack {
-                Text("目標を達成した先に、どうなっていたいですか？\n大きな目標に対して、具体的なステップを追加して夢を可視化しましょう。").font(.caption).foregroundColor(.secondary).padding()
+                Text("目標を達成した先に、どうなっていたいですか？\n大きな目標に対して、具体的なステップを追加して夢を可視化しましょう。。\n（例：「海外で働く」に向けて「日常英会話をマスターする」「英文レジュメを作る」など）").font(.caption).foregroundColor(.secondary).padding()
                 HStack {
                     TextField("例：海外で働く！", text: $newVisionTitle).textFieldStyle(RoundedBorderTextFieldStyle()).focused($isInputFocused).onSubmit { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }
                     Button(action: { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }) { Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.pink) }.buttonStyle(PlainButtonStyle())
