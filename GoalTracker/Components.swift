@@ -70,36 +70,6 @@ struct CompositeSummaryCard: View {
     }
 }
 
-struct GoalListSection: View {
-    let title: String; let iconColor: Color; var goals: [Goal]; var showCheckboxes: Bool
-    var onUpdate: ([Goal]) -> Void; var onCopy: (() -> Void)? = nil
-    @State private var temp = ""; @State private var show = false
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Image(systemName: "circle.fill").foregroundColor(iconColor).font(.system(size: 10))
-                Text(title).font(.caption).bold().foregroundColor(.primary)
-                Spacer()
-                if let onCopy = onCopy { Button(action: onCopy) { Image(systemName: "doc.on.clipboard").font(.system(size: 12)) }.padding(.trailing, 5) }
-                Button(action: { show = true }) { Image(systemName: "plus").font(.system(size: 12, weight: .bold)) }
-            }
-            ForEach(Array(goals.enumerated()), id: \.element.id) { index, goal in
-                HStack {
-                    if showCheckboxes {
-                        Image(systemName: goal.isCompleted ? "checkmark.circle.fill" : "circle").foregroundColor(goal.isCompleted ? .green : .gray)
-                            .onTapGesture { var newGoals = goals; newGoals[index].isCompleted.toggle(); onUpdate(newGoals) }
-                    } else { Text("・").foregroundColor(iconColor) }
-                    Text(goal.title).font(.subheadline).strikethrough(showCheckboxes && goal.isCompleted); Spacer()
-                    Button(action: { var newGoals = goals; newGoals.remove(at: index); onUpdate(newGoals) }) { Image(systemName: "xmark.circle").foregroundColor(.gray) }
-                }.padding(.vertical, 1)
-            }
-        }.padding(10).background(Color(.systemBackground)).cornerRadius(8).shadow(radius: 1)
-        .alert("追加", isPresented: $show) {
-            TextField("...", text: $temp); Button("キャンセル", role: .cancel) { temp = "" }
-            Button("追加") { if !temp.isEmpty { var n = goals; n.append(Goal(title: temp)); onUpdate(n); temp = "" } }
-        }
-    }
-}
 
 struct TextEditorView: View {
     let title: String; @Binding var text: String; var minHeight: CGFloat = 60; var placeholder: String = "入力..."

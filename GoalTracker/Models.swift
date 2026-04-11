@@ -4,12 +4,45 @@
 //
 
 import Foundation
+import SwiftUI
 
 struct AppSettings: Codable {
     var goalNotificationEnabled: Bool = false
     var goalNotificationTime: Date = Date()
     var reflectionNotificationEnabled: Bool = false
     var reflectionNotificationTime: Date = Date()
+    
+    // 🟢 追加：自由に編集できるカテゴリーのリスト（初期データ入り）
+    var categories: [CategoryItem] = [
+        CategoryItem(id: "action", name: "行動習慣", colorName: "blue"),
+        CategoryItem(id: "lifestyle", name: "生活習慣", colorName: "yellow"),
+        CategoryItem(id: "none", name: "指定なし", colorName: "gray")
+    ]
+}
+
+// 🟢 追加：カテゴリーの設定用モデル
+// 🟢 カテゴリーの設定用モデル（色を追加）
+struct CategoryItem: Identifiable, Codable, Equatable {
+    var id: String = UUID().uuidString
+    var name: String
+    var colorName: String
+    
+    var color: Color {
+        switch colorName {
+        case "blue": return .blue
+        case "teal": return .teal       // 水色（はっきりした青緑）
+        case "green": return .green
+        case "yellow": return .yellow
+        case "orange": return .orange
+        case "red": return .red
+        case "purple": return .purple
+        case "indigo": return .indigo   // 藍色（深い青紫）
+        case "brown": return .brown     // 茶色
+        case "pink": return .pink       // （過去データ互換用）
+        case "cyan": return .cyan       // （過去データ互換用）
+        default: return .gray
+        }
+    }
 }
 
 struct DailyNote: Codable {
@@ -23,11 +56,13 @@ struct Goal: Identifiable, Equatable, Codable {
     let id: UUID
     var title: String
     var isCompleted: Bool
+    var categoryId: String // 🟢 IDで保存するように変更
     
-    init(id: UUID = UUID(), title: String, isCompleted: Bool = false) {
+    init(id: UUID = UUID(), title: String, isCompleted: Bool = false, categoryId: String = "none") {
         self.id = id
         self.title = title
         self.isCompleted = isCompleted
+        self.categoryId = categoryId
     }
 }
 
@@ -80,7 +115,6 @@ struct MonthData: Codable {
     }
 }
 
-// 🔴 改善点：タスクの種類を定義
 enum TaskType: String, Codable, Equatable {
     case normal
     case dailyGoal
@@ -92,14 +126,16 @@ struct Task: Identifiable, Equatable, Codable {
     var title: String
     var isCompleted: Bool
     var isYearlyReflection: Bool
-    var type: TaskType // 🔴 追加
+    var type: TaskType
+    var categoryId: String // 🟢 IDで保存するように変更
     
-    init(id: UUID = UUID(), title: String, isCompleted: Bool = false, isYearlyReflection: Bool = false, type: TaskType = .normal) {
+    init(id: UUID = UUID(), title: String, isCompleted: Bool = false, isYearlyReflection: Bool = false, type: TaskType = .normal, categoryId: String = "none") {
         self.id = id
         self.title = title
         self.isCompleted = isCompleted
         self.isYearlyReflection = isYearlyReflection
         self.type = type
+        self.categoryId = categoryId
     }
 }
 

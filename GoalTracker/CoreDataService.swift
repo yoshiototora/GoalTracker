@@ -22,31 +22,33 @@ class CoreDataService {
     }
 
     // MARK: - Daily (Task & Note)
-    func fetchTasks(for dateKey: String) -> [Task] {
-        let request: NSFetchRequest<TaskEntity> = TaskEntity.fetchRequest()
-        request.predicate = NSPredicate(format: "dateKey == %@", dateKey)
-        if let entities = try? container.viewContext.fetch(request) {
-            return entities.map { Task(id: $0.id ?? UUID(), title: $0.title ?? "", isCompleted: $0.isCompleted, isYearlyReflection: $0.isYearlyReflection, type: TaskType(rawValue: $0.type ?? "normal") ?? .normal) }
-        }
-        return []
-    }
-    
-    func saveTasks(_ tasks: [Task], for dateKey: String) {
-        let context = container.viewContext
-        let request: NSFetchRequest<TaskEntity> = TaskEntity.fetchRequest()
-        request.predicate = NSPredicate(format: "dateKey == %@", dateKey)
-        
-        // 安全な削除処理（メモリと同期）
-        if let existingEntities = try? context.fetch(request) {
-            for entity in existingEntities { context.delete(entity) }
+        func fetchTasks(for dateKey: String) -> [Task] {
+            let request: NSFetchRequest<TaskEntity> = TaskEntity.fetchRequest()
+            request.predicate = NSPredicate(format: "dateKey == %@", dateKey)
+            if let entities = try? container.viewContext.fetch(request) {
+                return entities.map {
+                    Task(id: $0.id ?? UUID(), title: $0.title ?? "", isCompleted: $0.isCompleted, isYearlyReflection: $0.isYearlyReflection, type: TaskType(rawValue: $0.type ?? "normal") ?? .normal, categoryId: $0.category ?? "none")
+                }
+            }
+            return []
         }
         
-        for task in tasks {
-            let entity = TaskEntity(context: context)
-            entity.id = task.id; entity.title = task.title; entity.isCompleted = task.isCompleted; entity.isYearlyReflection = task.isYearlyReflection; entity.type = task.type.rawValue; entity.dateKey = dateKey
+        func saveTasks(_ tasks: [Task], for dateKey: String) {
+            let context = container.viewContext
+            let request: NSFetchRequest<TaskEntity> = TaskEntity.fetchRequest()
+            request.predicate = NSPredicate(format: "dateKey == %@", dateKey)
+            
+            if let existingEntities = try? context.fetch(request) {
+                for entity in existingEntities { context.delete(entity) }
+            }
+            
+            for task in tasks {
+                let entity = TaskEntity(context: context)
+                entity.id = task.id; entity.title = task.title; entity.isCompleted = task.isCompleted; entity.isYearlyReflection = task.isYearlyReflection; entity.type = task.type.rawValue; entity.dateKey = dateKey
+                entity.category = task.categoryId // 🟢 Stringとしてそのまま保存
+            }
+            saveContext()
         }
-        saveContext()
-    }
     
     func fetchDailyNote(for dateKey: String) -> DailyNote {
         let request: NSFetchRequest<DailyNoteEntity> = DailyNoteEntity.fetchRequest()
