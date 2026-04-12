@@ -56,6 +56,7 @@ class GoalViewModel: ObservableObject {
     }
     func getMonthlyTitle(for date: Date) -> String { let f = DateFormatter(); f.dateFormat = "yyyy年M月"; return f.string(from: date) }
     
+    // 💡 前回私が消してしまっていた必須メソッド（復活）
     // MARK: - Data Fetching
     func getNote(for date: Date) -> DailyNote { return coreData.fetchDailyNote(for: dateKey(date)) }
     func getWeekData(for date: Date) -> WeekData { return coreData.fetchWeekData(for: getCustomWeekInfo(for: date).key) }
@@ -87,13 +88,19 @@ class GoalViewModel: ObservableObject {
         }
     }
     func removeTasks(at offsets: IndexSet, for date: Date) {
-        var note = getNote(for: date); note.tasks.remove(atOffsets: offsets)
+        var note = getNote(for: date)
+        offsets.forEach { idx in
+            let task = note.tasks[idx]
+            if task.type == .dailyGoal || task.type == .tryCarryOver {
+                note.dismissedTaskTitles.append(task.title)
+            }
+        }
+        note.tasks.remove(atOffsets: offsets)
         coreData.saveDailyNote(note, for: dateKey(date))
         if Calendar.current.isDate(date, inSameDayAs: selectedDate) { currentDailyNote = note }
         currentDailyStreak = calculateDailyStreak()
     }
     
-    // 🟢 追加：タスクの編集機能
     func editTask(id: UUID, newTitle: String, newCategoryId: String, for date: Date) {
         var note = getNote(for: date)
         if let idx = note.tasks.firstIndex(where: { $0.id == id }) {
@@ -211,6 +218,7 @@ class GoalViewModel: ObservableObject {
         else { return "先\(isWeekly ? "週" : "月")と同じペースです！✨" }
     }
     
+    // 💡 前回私が消してしまっていた必須メソッド（復活）
     // MARK: - Category Helper
     func getCategory(id: String) -> CategoryItem {
         return appSettings.categories.first(where: { $0.id == id }) ?? CategoryItem(id: "none", name: "指定なし", colorName: "gray")
@@ -238,31 +246,91 @@ class GoalViewModel: ObservableObject {
         note.tasks.removeAll { ($0.type == .dailyGoal && !dailyGoalTitles.contains($0.title)) || ($0.type == .tryCarryOver && !allTrys.contains($0.title)) }
         
         for g in dailyGoals {
-            if !note.tasks.contains(where: { $0.title == g.title && $0.type == .dailyGoal }) {
+            if note.dismissedTaskTitles.contains(g.title) { continue }
+            if let idx = note.tasks.firstIndex(where: { $0.title == g.title && $0.type == .dailyGoal }) {
+                note.tasks[idx].categoryId = g.categoryId
+            } else {
                 note.tasks.append(Task(title: g.title, type: .dailyGoal, categoryId: g.categoryId))
             }
         }
-        for t in allTrys { if !note.tasks.contains(where: { $0.title == t && $0.type == .tryCarryOver }) { note.tasks.append(Task(title: t, type: .tryCarryOver)) } }
+        for t in allTrys {
+            if note.dismissedTaskTitles.contains(t) { continue }
+            if !note.tasks.contains(where: { $0.title == t && $0.type == .tryCarryOver }) {
+                note.tasks.append(Task(title: t, type: .tryCarryOver))
+            }
+        }
         coreData.saveDailyNote(note, for: dateKey(date))
         
         var weekData = getWeekData(for: date); let weeklyGoals = monthData.weeklyGoals.map { $0.title }
         weekData.goals.removeAll { !weeklyGoals.contains($0.title) }
-        for t in monthData.weeklyGoals { if !weekData.goals.contains(where: { $0.title == t.title }) { weekData.goals.append(Goal(title: t.title, categoryId: t.categoryId)) } }
+        for t in monthData.weeklyGoals {
+            if let idx = weekData.goals.firstIndex(where: { $0.title == t.title }) {
+                weekData.goals[idx].categoryId = t.categoryId
+            } else {
+                weekData.goals.append(Goal(title: t.title, categoryId: t.categoryId))
+            }
+        }
         coreData.saveWeekData(weekData, for: getCustomWeekInfo(for: date).key)
         
         loadCachedData()
     }
     
     // MARK: - Future Vision
-    func loadFutureVisions() { self.futureVisions = coreData.fetchFutureVisions() }
-    func addFutureVision(title: String) { futureVisions.append(FutureVision(title: title)); coreData.saveFutureVisions(futureVisions) }
-    func removeFutureVision(at offsets: IndexSet) { futureVisions.remove(atOffsets: offsets); coreData.saveFutureVisions(futureVisions) }
-    func toggleFutureVisionCompleted(id: UUID) { if let idx = futureVisions.firstIndex(where: { $0.id == id }) { futureVisions[idx].isCompleted.toggle(); coreData.saveFutureVisions(futureVisions) } }
-    func addSubTask(to visionId: UUID, title: String) { if let idx = futureVisions.firstIndex(where: { $0.id == visionId }) { futureVisions[idx].subTasks.append(SubTask(title: title)); coreData.saveFutureVisions(futureVisions) } }
-    func toggleSubTaskCompleted(visionId: UUID, subTaskId: UUID) { if let vIdx = futureVisions.firstIndex(where: { $0.id == visionId }), let sIdx = futureVisions[vIdx].subTasks.firstIndex(where: { $0.id == subTaskId }) { futureVisions[vIdx].subTasks[sIdx].isCompleted.toggle(); coreData.saveFutureVisions(futureVisions) } }
-    func deleteSubTasks(visionId: UUID, at offsets: IndexSet) { if let idx = futureVisions.firstIndex(where: { $0.id == visionId }) { futureVisions[idx].subTasks.remove(atOffsets: offsets); coreData.saveFutureVisions(futureVisions) } }
+        func loadFutureVisions() { self.futureVisions = coreData.fetchFutureVisions() }
+        func addFutureVision(title: String) { futureVisions.append(FutureVision(title: title)); coreData.saveFutureVisions(futureVisions) }
+        func removeFutureVision(at offsets: IndexSet) { futureVisions.remove(atOffsets: offsets); coreData.saveFutureVisions(futureVisions) }
+        
+        // 🟢 追加：大目標（未来の自分）の名前を変更
+        func editFutureVision(id: UUID, newTitle: String) {
+            if let idx = futureVisions.firstIndex(where: { $0.id == id }) {
+                futureVisions[idx].title = newTitle
+                coreData.saveFutureVisions(futureVisions)
+            }
+        }
+        
+        func toggleFutureVisionCompleted(id: UUID) { if let idx = futureVisions.firstIndex(where: { $0.id == id }) { futureVisions[idx].isCompleted.toggle(); coreData.saveFutureVisions(futureVisions) } }
+        func addSubTask(to visionId: UUID, title: String) { if let idx = futureVisions.firstIndex(where: { $0.id == visionId }) { futureVisions[idx].subTasks.append(SubTask(title: title)); coreData.saveFutureVisions(futureVisions) } }
+        
+        // 🟢 追加：具体的なステップの名前を変更
+        func editSubTask(visionId: UUID, subTaskId: UUID, newTitle: String) {
+            if let vIdx = futureVisions.firstIndex(where: { $0.id == visionId }), let sIdx = futureVisions[vIdx].subTasks.firstIndex(where: { $0.id == subTaskId }) {
+                futureVisions[vIdx].subTasks[sIdx].title = newTitle
+                coreData.saveFutureVisions(futureVisions)
+            }
+        }
+        
+        func toggleSubTaskCompleted(visionId: UUID, subTaskId: UUID) { if let vIdx = futureVisions.firstIndex(where: { $0.id == visionId }), let sIdx = futureVisions[vIdx].subTasks.firstIndex(where: { $0.id == subTaskId }) { futureVisions[vIdx].subTasks[sIdx].isCompleted.toggle(); coreData.saveFutureVisions(futureVisions) } }
+        func deleteSubTasks(visionId: UUID, at offsets: IndexSet) { if let idx = futureVisions.firstIndex(where: { $0.id == visionId }) { futureVisions[idx].subTasks.remove(atOffsets: offsets); coreData.saveFutureVisions(futureVisions) } }
     
     // MARK: - Settings
-    func loadSettings() { if let data = UserDefaults.standard.data(forKey: settingsKey), let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) { self.appSettings = decoded } }
-    func saveSettings() { if let encoded = try? JSONEncoder().encode(appSettings) { UserDefaults.standard.set(encoded, forKey: settingsKey) }; NotificationService.shared.updateNotifications(settings: appSettings); objectWillChange.send() }
+    func loadSettings() {
+        if let data = UserDefaults.standard.data(forKey: settingsKey), let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
+            self.appSettings = decoded
+        }
+    }
+    
+    func saveSettings() {
+        if let encoded = try? JSONEncoder().encode(appSettings) {
+            UserDefaults.standard.set(encoded, forKey: settingsKey)
+        }
+        refreshNotifications()
+        objectWillChange.send()
+    }
+    
+    func refreshNotifications() {
+        let today = Date()
+        let note = getNote(for: today)
+        let todayTasks = note.tasks
+        
+        let hasUncompleted = todayTasks.isEmpty ? true : todayTasks.contains(where: { !$0.isCompleted })
+        let yesterdayTrys = getYesterdayTryList(for: today)
+        
+        NotificationService.shared.updateNotifications(
+            settings: appSettings,
+            currentStreak: currentDailyStreak,
+            todayTasks: todayTasks,
+            yesterdayTrys: yesterdayTrys,
+            hasUncompletedTasks: hasUncompleted
+        )
+    }
 }

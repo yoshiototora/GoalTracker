@@ -14,8 +14,6 @@ struct HomeView: View {
     @FocusState private var isInputFocused: Bool
     
     @AppStorage("goalTutorialStep") var tutorialStep = 0
-    
-    // 🟢 編集用の状態を追加
     @State private var editingTask: Task? = nil
     
     var body: some View {
@@ -81,7 +79,6 @@ struct HomeView: View {
                                     let impact = UIImpactFeedbackGenerator(style: .medium); impact.impactOccurred()
                                     viewModel.toggleTask(id: task.id, for: viewModel.selectedDate)
                                 }
-                                // 🟢 スワイプアクションで編集・削除を出せるように変更
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button(role: .destructive) {
                                         if let idx = currentTasks.firstIndex(where: { $0.id == task.id }) {
@@ -96,7 +93,7 @@ struct HomeView: View {
                             }
                         }
                     }
-                    // 🟢 タスクの編集画面を呼び出す
+                    .listStyle(PlainListStyle())
                     .sheet(item: $editingTask) { task in
                         EditItemSheet(viewModel: viewModel, title: task.title, categoryId: task.categoryId) { newTitle, newCatId in
                             viewModel.editTask(id: task.id, newTitle: newTitle, newCategoryId: newCatId, for: viewModel.selectedDate)
@@ -123,14 +120,6 @@ struct EmptyStateView: View {
             Button(action: action) { HStack { Image(systemName: "plus"); Text(buttonTitle) }.font(.headline).foregroundColor(.white).padding(.horizontal, 24).padding(.vertical, 12).background(Color.blue).cornerRadius(20).shadow(color: .blue.opacity(0.3), radius: 5, y: 3) }.padding(.top, 10)
             Spacer()
         }
-    }
-}
-
-struct StatBox: View {
-    let title: String; let value: String; let color: Color
-    var body: some View {
-        VStack(spacing: 4) { Text(title).font(.caption2).foregroundColor(.gray); Text(value).font(.title3).bold().foregroundColor(color) }
-        .frame(maxWidth: .infinity).padding(.vertical, 8).background(Color(.systemGray6)).cornerRadius(10)
     }
 }
 
@@ -380,7 +369,7 @@ struct TutorialBubble: View {
     }
 }
 
-// MARK: - アクセントラインと 🟢編集機能🟢 が付いた目標リスト
+// MARK: - 目標リスト（編集・削除対応）
 struct GoalListSection: View {
     let title: String; let iconColor: Color; var goals: [Goal]
     @ObservedObject var viewModel: GoalViewModel
@@ -392,7 +381,6 @@ struct GoalListSection: View {
     @State private var selectedCategoryId = "action"
     @State private var isAdding = false
     
-    // 🟢 編集用の状態を追加
     @State private var editingGoal: Goal? = nil
     
     var body: some View {
@@ -434,7 +422,7 @@ struct GoalListSection: View {
                     
                     Spacer()
                     
-                    // 🟢 編集ボタン（えんぴつアイコン）
+                    // 編集ボタン（えんぴつアイコン）
                     Button(action: { editingGoal = goal }) {
                         Image(systemName: "pencil")
                             .foregroundColor(.gray.opacity(0.8))
@@ -508,7 +496,7 @@ struct GoalListSection: View {
             
         }.padding(12).background(Color(.systemBackground)).cornerRadius(10).shadow(color: Color.black.opacity(0.05), radius: 3)
         .onAppear { if let first = categories.first { selectedCategoryId = first.id } }
-        // 🟢 編集シートの表示
+        // 編集シートの表示
         .sheet(item: $editingGoal) { goal in
             EditItemSheet(viewModel: viewModel, title: goal.title, categoryId: goal.categoryId) { newTitle, newCatId in
                 if let idx = goals.firstIndex(where: { $0.id == goal.id }) {
@@ -579,7 +567,7 @@ struct EditItemSheet: View {
     }
 }
 
-// MARK: - 設定画面
+// MARK: - 設定画面（ここが前回消えてしまっていました！）
 struct SettingsView: View {
     @ObservedObject var viewModel: GoalViewModel
     @State private var isTutorial = false
@@ -613,7 +601,7 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - カテゴリー追加・編集用の専用画面
+// MARK: - カテゴリー設定画面
 struct CategorySettingsView: View {
     @ObservedObject var viewModel: GoalViewModel
     @State private var newName = ""
@@ -678,6 +666,11 @@ struct FutureVisionView: View {
     @ObservedObject var viewModel: GoalViewModel; @State private var newVisionTitle = ""
     @FocusState private var isInputFocused: Bool
     
+    // 🟢 編集用の状態（大目標用）
+    @State private var editingVision: FutureVision? = nil
+    @State private var editingVisionTitle = ""
+    @State private var showEditAlert = false
+    
     var body: some View {
         NavigationView {
             VStack {
@@ -686,13 +679,41 @@ struct FutureVisionView: View {
                     TextField("例：海外で働く！", text: $newVisionTitle).textFieldStyle(RoundedBorderTextFieldStyle()).focused($isInputFocused).onSubmit { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }
                     Button(action: { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }) { Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.pink) }.buttonStyle(PlainButtonStyle())
                 }.padding(.horizontal)
+                
                 List {
-                    ForEach(viewModel.futureVisions) { vision in FutureVisionRow(vision: vision, viewModel: viewModel) }
-                    .onDelete { offsets in viewModel.removeFutureVision(at: offsets) }
+                    ForEach(viewModel.futureVisions) { vision in
+                        FutureVisionRow(vision: vision, viewModel: viewModel)
+                            // 🟢 スワイプアクションで編集・削除を実装
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    if let idx = viewModel.futureVisions.firstIndex(where: { $0.id == vision.id }) {
+                                        viewModel.removeFutureVision(at: IndexSet(integer: idx))
+                                    }
+                                } label: { Image(systemName: "trash") }
+                                
+                                Button {
+                                    editingVision = vision
+                                    editingVisionTitle = vision.title
+                                    showEditAlert = true
+                                } label: { Image(systemName: "pencil") }.tint(.orange)
+                            }
+                    }
                 }
+                .listStyle(PlainListStyle())
             }
             .navigationTitle("✨ 未来の自分")
             .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { isInputFocused = false } } }
+            // 🟢 その場で編集できるアラートを追加
+            .alert("目標の編集", isPresented: $showEditAlert) {
+                TextField("目標タイトル", text: $editingVisionTitle)
+                Button("キャンセル", role: .cancel) { editingVision = nil }
+                Button("保存") {
+                    if let v = editingVision, !editingVisionTitle.isEmpty {
+                        viewModel.editFutureVision(id: v.id, newTitle: editingVisionTitle)
+                    }
+                    editingVision = nil
+                }
+            }
         }
     }
 }
@@ -714,6 +735,11 @@ struct FutureVisionRow: View {
     @State private var isExpanded = false; @State private var newSubTaskText = ""
     @FocusState private var isSubTaskFocused: Bool
     
+    // 🟢 編集用の状態（具体的なステップ用）
+    @State private var editingSubTask: SubTask? = nil
+    @State private var editingSubTaskTitle = ""
+    @State private var showSubTaskEditAlert = false
+    
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 10) {
@@ -721,7 +747,15 @@ struct FutureVisionRow: View {
                     HStack {
                         Button(action: { viewModel.toggleSubTaskCompleted(visionId: vision.id, subTaskId: subTask.id) }) { Image(systemName: subTask.isCompleted ? "checkmark.square.fill" : "square").foregroundColor(subTask.isCompleted ? .pink : .gray).font(.system(size: 20)) }.buttonStyle(PlainButtonStyle())
                         Text(subTask.title).strikethrough(subTask.isCompleted).foregroundColor(subTask.isCompleted ? .secondary : .primary); Spacer()
-                        Button(action: { if let index = vision.subTasks.firstIndex(where: { $0.id == subTask.id }) { viewModel.deleteSubTasks(visionId: vision.id, at: IndexSet(integer: index)) } }) { Image(systemName: "trash").foregroundColor(.red.opacity(0.6)).font(.system(size: 16)) }.buttonStyle(PlainButtonStyle()).padding(.leading, 6)
+                        
+                        // 🟢 ステップ名の横に編集ボタン（鉛筆）を追加
+                        Button(action: {
+                            editingSubTask = subTask
+                            editingSubTaskTitle = subTask.title
+                            showSubTaskEditAlert = true
+                        }) { Image(systemName: "pencil").foregroundColor(.orange.opacity(0.8)).font(.system(size: 16)) }.buttonStyle(PlainButtonStyle()).padding(.trailing, 6)
+                        
+                        Button(action: { if let index = vision.subTasks.firstIndex(where: { $0.id == subTask.id }) { viewModel.deleteSubTasks(visionId: vision.id, at: IndexSet(integer: index)) } }) { Image(systemName: "trash").foregroundColor(.red.opacity(0.6)).font(.system(size: 16)) }.buttonStyle(PlainButtonStyle()).padding(.leading, 2)
                     }.padding(.vertical, 2)
                 }
                 HStack {
@@ -729,7 +763,19 @@ struct FutureVisionRow: View {
                     TextField("具体的なステップを追加...", text: $newSubTaskText).textFieldStyle(PlainTextFieldStyle()).focused($isSubTaskFocused).onSubmit { addSubTask() }
                     Button(action: { addSubTask() }) { Image(systemName: "plus.circle.fill").foregroundColor(newSubTaskText.isEmpty ? .gray.opacity(0.3) : .pink).font(.system(size: 24)) }.disabled(newSubTaskText.isEmpty).buttonStyle(PlainButtonStyle())
                 }.padding(.top, 5)
-            }.padding(.leading, 10)
+            }
+            .padding(.leading, 10)
+            // 🟢 その場で編集できるアラートを追加
+            .alert("ステップの編集", isPresented: $showSubTaskEditAlert) {
+                TextField("ステップ名", text: $editingSubTaskTitle)
+                Button("キャンセル", role: .cancel) { editingSubTask = nil }
+                Button("保存") {
+                    if let s = editingSubTask, !editingSubTaskTitle.isEmpty {
+                        viewModel.editSubTask(visionId: vision.id, subTaskId: s.id, newTitle: editingSubTaskTitle)
+                    }
+                    editingSubTask = nil
+                }
+            }
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {

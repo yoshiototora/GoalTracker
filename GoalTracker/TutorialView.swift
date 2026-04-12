@@ -28,7 +28,7 @@ struct TutorialView: View {
                         Image(systemName: "target").resizable().scaledToFit().frame(width: 100, height: 100).foregroundColor(.blue)
                         Text("ようこそ！\nまずは最初の目標を決めましょう").font(.title2.bold()).multilineTextAlignment(.center)
                         
-                        Text("このアプリは「なりたい自分」に\n近づくための場所です。\n\nまずは、小さな一歩から。\n毎日続けたい行動を1つ教えてください。\n（例：読書を10分、水を1L飲む）")
+                        Text("このアプリは「なりたい自分」に\n近づくための場所です。\n\nまずは、小さな一歩から。\n毎日続けたい行動を1つ教えてください。\n（例：読書を10分、英単語を10個覚える）")
                             .font(.body).foregroundColor(.secondary).multilineTextAlignment(.center).padding(.horizontal)
                         
                         TextField("最初の目標を入力...", text: $firstGoalTitle)

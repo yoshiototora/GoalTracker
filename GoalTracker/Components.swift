@@ -151,22 +151,97 @@ struct CalendarGridView: View {
 }
 
 struct LuxuriousCompletionEffect: View {
-    let completedCount: Int; @State private var opacities: [Double] = Array(repeating: 0.0, count: 42); @State private var showConfetti = false; @State private var showText = false
+    let completedCount: Int
+    
+    // 💡 達成感を高めるメッセージ
+    let messages = [
+        "1年間の努力が結実しました！",
+        "着実な一歩が未来を作りました！",
+        "過去の自分を見事に超えました！",
+        "継続は力なり、ですね！",
+        "この素晴らしい軌跡を誇りに思いましょう！"
+    ]
+    @State private var randomMessage = ""
+    
+    // アニメーション用の状態
+    @State private var showContent = false
+    @State private var opacities: [Double] = Array(repeating: 0.0, count: 42)
+    
     let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
+    
     var body: some View {
         ZStack {
-            if completedCount >= 6 { Color.yellow.opacity(showText ? 0.15 : 0.0).ignoresSafeArea() }
-            LazyVGrid(columns: columns, spacing: 6) { ForEach(0..<42, id: \.self) { index in RoundedRectangle(cornerRadius: 4).fill(blockColor(for: index)).aspectRatio(1, contentMode: .fit).opacity(opacities[index]) } }.padding(40)
-            if completedCount >= 3 { ForEach(0..<30, id: \.self) { i in Circle().fill(confettiColor(for: i)).frame(width: CGFloat.random(in: 6...12)).offset(x: showConfetti ? CGFloat.random(in: -180...180) : 0, y: showConfetti ? CGFloat.random(in: -250...250) : 0).opacity(showConfetti ? 0 : 1).scaleEffect(showConfetti ? CGFloat.random(in: 0.5...1.5) : 0) } }
-            if completedCount >= 6 { VStack { Text("✨ AMAZING! ✨").font(.system(size: 40, weight: .black, design: .rounded)).foregroundColor(.yellow).shadow(color: .orange, radius: 5, x: 0, y: 2); Text("未来の自分に到達！").font(.title2).bold().foregroundColor(.orange) }.scaleEffect(showText ? 1.0 : 0.0).opacity(showText ? 1.0 : 0.0) }
-        }.onAppear {
-            for i in 0..<42 { withAnimation(.easeOut(duration: 0.5).delay(Double.random(in: 0...1.0))) { opacities[i] = 1.0 }; withAnimation(.easeIn(duration: 0.5).delay(Double.random(in: 1.5...2.5))) { opacities[i] = 0.0 } }
-            if completedCount >= 3 { withAnimation(.easeOut(duration: 1.0).delay(0.2)) { showConfetti = true } }
-            if completedCount >= 6 { withAnimation(.spring(response: 0.5, dampingFraction: 0.6).delay(0.5)) { showText = true }; withAnimation(.easeIn(duration: 0.5).delay(2.0)) { showText = false } }
-        }.allowsHitTesting(false)
+            // 1. 緑のヒートマップ（画面を暗くする処理をなくし、明るさをキープ！）
+            if completedCount >= 1 {
+                LazyVGrid(columns: columns, spacing: 6) {
+                    ForEach(0..<42, id: \.self) { index in
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(red: 0.15, green: 0.55, blue: 0.15))
+                            .aspectRatio(1, contentMode: .fit)
+                            .opacity(opacities[index])
+                    }
+                }
+                .padding(40)
+            }
+            
+            // 2. すりガラス風の明るく上品なカードで文字を表示
+            if completedCount >= 1 {
+                VStack(spacing: 20) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 40, weight: .regular))
+                        .foregroundColor(.orange) // 達成感のある温かい色に
+                        .scaleEffect(showContent ? 1.0 : 0.5)
+                    
+                    VStack(spacing: 12) {
+                        Text("未来の自分に到達")
+                            .font(.title2.bold())
+                            .foregroundColor(.primary)
+                            .tracking(2)
+                        
+                        Text(randomMessage)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(4) // 行間を少し開けて読みやすく
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.vertical, 28)
+                // 💡 ここがポイント：暗くせず、背景を美しくぼかすiOSネイティブの表現
+                .background(.regularMaterial)
+                .cornerRadius(20)
+                .shadow(color: Color.black.opacity(0.1), radius: 10, y: 5)
+                .opacity(showContent ? 1.0 : 0.0)
+                .offset(y: showContent ? 0 : 10)
+            }
+        }
+        .onAppear {
+            randomMessage = messages.randomElement() ?? messages[0]
+            
+            if completedCount >= 1 {
+                // ヒートマップのブロックアニメーション
+                for i in 0..<42 {
+                    withAnimation(.easeOut(duration: 0.5).delay(Double.random(in: 0...1.0))) {
+                        opacities[i] = 1.0
+                    }
+                    withAnimation(.easeIn(duration: 1.0).delay(Double.random(in: 4.0...5.0))) {
+                        opacities[i] = 0.0
+                    }
+                }
+                
+                // テキストカードのフェードイン
+                withAnimation(.easeOut(duration: 0.8).delay(0.3)) {
+                    showContent = true
+                }
+                
+                // 4.5秒後にゆっくりフェードアウト（十分に読む時間を確保）
+                withAnimation(.easeIn(duration: 1.0).delay(4.5)) {
+                    showContent = false
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
-    func blockColor(for index: Int) -> Color { if completedCount >= 6 { return .yellow }; if completedCount >= 3 { let c: [Color] = [.pink, .orange, .purple, .red]; return c[index % c.count] }; return Color(red: 0.15, green: 0.55, blue: 0.15) }
-    func confettiColor(for index: Int) -> Color { let c: [Color] = [.yellow, .pink, .orange, .mint, .cyan]; return c[index % c.count] }
 }
 
 struct StreakBadgeView: View {

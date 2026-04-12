@@ -25,6 +25,10 @@ class CoreDataService {
         func fetchTasks(for dateKey: String) -> [Task] {
             let request: NSFetchRequest<TaskEntity> = TaskEntity.fetchRequest()
             request.predicate = NSPredicate(format: "dateKey == %@", dateKey)
+            
+            // 💡 修正1：保存した並び順（orderIndex）の通りに読み込むように指示を追加
+            request.sortDescriptors = [NSSortDescriptor(key: "orderIndex", ascending: true)]
+            
             if let entities = try? container.viewContext.fetch(request) {
                 return entities.map {
                     Task(id: $0.id ?? UUID(), title: $0.title ?? "", isCompleted: $0.isCompleted, isYearlyReflection: $0.isYearlyReflection, type: TaskType(rawValue: $0.type ?? "normal") ?? .normal, categoryId: $0.category ?? "none")
@@ -42,10 +46,17 @@ class CoreDataService {
                 for entity in existingEntities { context.delete(entity) }
             }
             
-            for task in tasks {
+            // 💡 修正2：タスクの配列の順番（index）を orderIndex としてデータベースに一緒に記憶させる
+            for (index, task) in tasks.enumerated() {
                 let entity = TaskEntity(context: context)
-                entity.id = task.id; entity.title = task.title; entity.isCompleted = task.isCompleted; entity.isYearlyReflection = task.isYearlyReflection; entity.type = task.type.rawValue; entity.dateKey = dateKey
-                entity.category = task.categoryId // 🟢 Stringとしてそのまま保存
+                entity.id = task.id
+                entity.title = task.title
+                entity.isCompleted = task.isCompleted
+                entity.isYearlyReflection = task.isYearlyReflection
+                entity.type = task.type.rawValue
+                entity.dateKey = dateKey
+                entity.category = task.categoryId
+                entity.orderIndex = Int16(index) // 👈 ここを追加しました
             }
             saveContext()
         }

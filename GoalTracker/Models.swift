@@ -12,7 +12,7 @@ struct AppSettings: Codable {
     var reflectionNotificationEnabled: Bool = false
     var reflectionNotificationTime: Date = Date()
     
-    // 🟢 追加：自由に編集できるカテゴリーのリスト（初期データ入り）
+    // 自由に編集できるカテゴリーのリスト（初期データ入り）
     var categories: [CategoryItem] = [
         CategoryItem(id: "action", name: "行動習慣", colorName: "blue"),
         CategoryItem(id: "lifestyle", name: "生活習慣", colorName: "yellow"),
@@ -20,8 +20,7 @@ struct AppSettings: Codable {
     ]
 }
 
-// 🟢 追加：カテゴリーの設定用モデル
-// 🟢 カテゴリーの設定用モデル（色を追加）
+// カテゴリーの設定用モデル（色を追加）
 struct CategoryItem: Identifiable, Codable, Equatable {
     var id: String = UUID().uuidString
     var name: String
@@ -50,13 +49,15 @@ struct DailyNote: Codable {
     var keep: String = ""
     var problem: String = ""
     var tryList: [String] = []
+    // 💡 今回追加した部分：ユーザーが意図的に消した持ち越しタスクを記録
+    var dismissedTaskTitles: [String] = []
 }
 
 struct Goal: Identifiable, Equatable, Codable {
     let id: UUID
     var title: String
     var isCompleted: Bool
-    var categoryId: String // 🟢 IDで保存するように変更
+    var categoryId: String // IDで保存するように変更
     
     init(id: UUID = UUID(), title: String, isCompleted: Bool = false, categoryId: String = "none") {
         self.id = id
@@ -127,7 +128,7 @@ struct Task: Identifiable, Equatable, Codable {
     var isCompleted: Bool
     var isYearlyReflection: Bool
     var type: TaskType
-    var categoryId: String // 🟢 IDで保存するように変更
+    var categoryId: String
     
     init(id: UUID = UUID(), title: String, isCompleted: Bool = false, isYearlyReflection: Bool = false, type: TaskType = .normal, categoryId: String = "none") {
         self.id = id
