@@ -12,7 +12,6 @@ struct AppSettings: Codable {
     var reflectionNotificationEnabled: Bool = false
     var reflectionNotificationTime: Date = Date()
     
-    // 自由に編集できるカテゴリーのリスト（初期データ入り）
     var categories: [CategoryItem] = [
         CategoryItem(id: "action", name: "行動習慣", colorName: "blue"),
         CategoryItem(id: "lifestyle", name: "生活習慣", colorName: "yellow"),
@@ -20,7 +19,6 @@ struct AppSettings: Codable {
     ]
 }
 
-// カテゴリーの設定用モデル（色を追加）
 struct CategoryItem: Identifiable, Codable, Equatable {
     var id: String = UUID().uuidString
     var name: String
@@ -29,16 +27,16 @@ struct CategoryItem: Identifiable, Codable, Equatable {
     var color: Color {
         switch colorName {
         case "blue": return .blue
-        case "teal": return .teal       // 水色（はっきりした青緑）
+        case "teal": return .teal
         case "green": return .green
         case "yellow": return .yellow
         case "orange": return .orange
         case "red": return .red
         case "purple": return .purple
-        case "indigo": return .indigo   // 藍色（深い青紫）
-        case "brown": return .brown     // 茶色
-        case "pink": return .pink       // （過去データ互換用）
-        case "cyan": return .cyan       // （過去データ互換用）
+        case "indigo": return .indigo
+        case "brown": return .brown
+        case "pink": return .pink
+        case "cyan": return .cyan
         default: return .gray
         }
     }
@@ -48,8 +46,7 @@ struct DailyNote: Codable {
     var tasks: [Task] = []
     var keep: String = ""
     var problem: String = ""
-    var tryList: [String] = []
-    // 💡 今回追加した部分：ユーザーが意図的に消した持ち越しタスクを記録
+    var tryList: [Goal] = []
     var dismissedTaskTitles: [String] = []
 }
 
@@ -57,7 +54,7 @@ struct Goal: Identifiable, Equatable, Codable {
     let id: UUID
     var title: String
     var isCompleted: Bool
-    var categoryId: String // IDで保存するように変更
+    var categoryId: String
     
     init(id: UUID = UUID(), title: String, isCompleted: Bool = false, categoryId: String = "none") {
         self.id = id
@@ -71,7 +68,7 @@ struct WeekData: Codable {
     var goals: [Goal] = []
     var keep: String = ""
     var problem: String = ""
-    var tryList: [String] = []
+    var tryList: [Goal] = []
     var reflection: String = ""
 }
 
@@ -81,7 +78,7 @@ struct MonthData: Codable {
     var dailyGoals: [Goal] = []
     var keep: String = ""
     var problem: String = ""
-    var tryList: [String] = []
+    var tryList: [Goal] = []
     var reflection: String = ""
     var futureSelf: String = ""
     
@@ -98,7 +95,8 @@ struct MonthData: Codable {
         dailyGoals = try container.decodeIfPresent([Goal].self, forKey: .dailyGoals) ?? []
         keep = try container.decodeIfPresent(String.self, forKey: .keep) ?? ""
         problem = try container.decodeIfPresent(String.self, forKey: .problem) ?? ""
-        tryList = try container.decodeIfPresent([String].self, forKey: .tryList) ?? []
+        // 💡 修正：[String].self から [Goal].self に変更しました
+        tryList = try container.decodeIfPresent([Goal].self, forKey: .tryList) ?? []
         reflection = try container.decodeIfPresent(String.self, forKey: .reflection) ?? ""
         futureSelf = try container.decodeIfPresent(String.self, forKey: .futureSelf) ?? ""
     }

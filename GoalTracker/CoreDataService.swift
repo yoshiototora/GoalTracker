@@ -22,51 +22,40 @@ class CoreDataService {
     }
 
     // MARK: - Daily (Task & Note)
-        func fetchTasks(for dateKey: String) -> [Task] {
-            let request: NSFetchRequest<TaskEntity> = TaskEntity.fetchRequest()
-            request.predicate = NSPredicate(format: "dateKey == %@", dateKey)
-            
-            // 💡 修正1：保存した並び順（orderIndex）の通りに読み込むように指示を追加
-            request.sortDescriptors = [NSSortDescriptor(key: "orderIndex", ascending: true)]
-            
-            if let entities = try? container.viewContext.fetch(request) {
-                return entities.map {
-                    Task(id: $0.id ?? UUID(), title: $0.title ?? "", isCompleted: $0.isCompleted, isYearlyReflection: $0.isYearlyReflection, type: TaskType(rawValue: $0.type ?? "normal") ?? .normal, categoryId: $0.category ?? "none")
-                }
+    func fetchTasks(for dateKey: String) -> [Task] {
+        let request: NSFetchRequest<TaskEntity> = TaskEntity.fetchRequest()
+        request.predicate = NSPredicate(format: "dateKey == %@", dateKey)
+        if let entities = try? container.viewContext.fetch(request) {
+            return entities.map {
+                Task(id: $0.id ?? UUID(), title: $0.title ?? "", isCompleted: $0.isCompleted, isYearlyReflection: $0.isYearlyReflection, type: TaskType(rawValue: $0.type ?? "normal") ?? .normal, categoryId: $0.category ?? "none")
             }
-            return []
+        }
+        return []
+    }
+    
+    func saveTasks(_ tasks: [Task], for dateKey: String) {
+        let context = container.viewContext
+        let request: NSFetchRequest<TaskEntity> = TaskEntity.fetchRequest()
+        request.predicate = NSPredicate(format: "dateKey == %@", dateKey)
+        
+        if let existingEntities = try? context.fetch(request) {
+            for entity in existingEntities { context.delete(entity) }
         }
         
-        func saveTasks(_ tasks: [Task], for dateKey: String) {
-            let context = container.viewContext
-            let request: NSFetchRequest<TaskEntity> = TaskEntity.fetchRequest()
-            request.predicate = NSPredicate(format: "dateKey == %@", dateKey)
-            
-            if let existingEntities = try? context.fetch(request) {
-                for entity in existingEntities { context.delete(entity) }
-            }
-            
-            // 💡 修正2：タスクの配列の順番（index）を orderIndex としてデータベースに一緒に記憶させる
-            for (index, task) in tasks.enumerated() {
-                let entity = TaskEntity(context: context)
-                entity.id = task.id
-                entity.title = task.title
-                entity.isCompleted = task.isCompleted
-                entity.isYearlyReflection = task.isYearlyReflection
-                entity.type = task.type.rawValue
-                entity.dateKey = dateKey
-                entity.category = task.categoryId
-                entity.orderIndex = Int16(index) // 👈 ここを追加しました
-            }
-            saveContext()
+        for task in tasks {
+            let entity = TaskEntity(context: context)
+            entity.id = task.id; entity.title = task.title; entity.isCompleted = task.isCompleted; entity.isYearlyReflection = task.isYearlyReflection; entity.type = task.type.rawValue; entity.dateKey = dateKey
+            entity.category = task.categoryId
         }
+        saveContext()
+    }
     
     func fetchDailyNote(for dateKey: String) -> DailyNote {
         let request: NSFetchRequest<DailyNoteEntity> = DailyNoteEntity.fetchRequest()
         request.predicate = NSPredicate(format: "dateKey == %@", dateKey)
         if let entity = try? container.viewContext.fetch(request).first {
-            var tryList: [String] = []
-            if let data = entity.tryListData, let decoded = try? JSONDecoder().decode([String].self, from: data) { tryList = decoded }
+            var tryList: [Goal] = [] // 💡 修正：String から Goal へ
+            if let data = entity.tryListData, let decoded = try? JSONDecoder().decode([Goal].self, from: data) { tryList = decoded } // 💡 修正
             var note = DailyNote(keep: entity.keep ?? "", problem: entity.problem ?? "", tryList: tryList)
             note.tasks = fetchTasks(for: dateKey)
             return note
@@ -93,7 +82,7 @@ class CoreDataService {
         if let entity = try? container.viewContext.fetch(request).first {
             var w = WeekData()
             w.keep = entity.keep ?? ""; w.problem = entity.problem ?? ""; w.reflection = entity.reflection ?? ""
-            if let data = entity.tryListData, let dec = try? JSONDecoder().decode([String].self, from: data) { w.tryList = dec }
+            if let data = entity.tryListData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { w.tryList = dec } // 💡 修正
             if let data = entity.goalsData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { w.goals = dec }
             return w
         }
@@ -119,7 +108,7 @@ class CoreDataService {
         if let entity = try? container.viewContext.fetch(request).first {
             var m = MonthData()
             m.keep = entity.keep ?? ""; m.problem = entity.problem ?? ""; m.reflection = entity.reflection ?? ""
-            if let data = entity.tryListData, let dec = try? JSONDecoder().decode([String].self, from: data) { m.tryList = dec }
+            if let data = entity.tryListData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { m.tryList = dec } // 💡 修正
             if let data = entity.monthlyGoalsData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { m.monthlyGoals = dec }
             if let data = entity.weeklyGoalsData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { m.weeklyGoals = dec }
             if let data = entity.dailyGoalsData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { m.dailyGoals = dec }
@@ -160,7 +149,6 @@ class CoreDataService {
         let context = container.viewContext
         let request: NSFetchRequest<FutureVisionEntity> = FutureVisionEntity.fetchRequest()
         
-        // 安全な削除処理
         if let existingEntities = try? context.fetch(request) {
             for entity in existingEntities { context.delete(entity) }
         }
