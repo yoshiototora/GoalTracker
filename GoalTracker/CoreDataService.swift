@@ -54,9 +54,13 @@ class CoreDataService {
         let request: NSFetchRequest<DailyNoteEntity> = DailyNoteEntity.fetchRequest()
         request.predicate = NSPredicate(format: "dateKey == %@", dateKey)
         if let entity = try? container.viewContext.fetch(request).first {
-            var tryList: [Goal] = [] // 💡 修正：String から Goal へ
-            if let data = entity.tryListData, let decoded = try? JSONDecoder().decode([Goal].self, from: data) { tryList = decoded } // 💡 修正
+            var tryList: [Goal] = []
+            if let data = entity.tryListData, let decoded = try? JSONDecoder().decode([Goal].self, from: data) { tryList = decoded }
             var note = DailyNote(keep: entity.keep ?? "", problem: entity.problem ?? "", tryList: tryList)
+            
+            // 💡 追加：保存された振り返りを読み込む
+            note.reflection = entity.reflection ?? ""
+            
             note.tasks = fetchTasks(for: dateKey)
             return note
         }
@@ -70,6 +74,10 @@ class CoreDataService {
         let entity = (try? context.fetch(request).first) ?? DailyNoteEntity(context: context)
         
         entity.dateKey = dateKey; entity.keep = note.keep; entity.problem = note.problem
+        
+        // 💡 追加：振り返りを保存する
+        entity.reflection = note.reflection
+        
         if let encoded = try? JSONEncoder().encode(note.tryList) { entity.tryListData = encoded }
         saveTasks(note.tasks, for: dateKey)
         saveContext()
@@ -82,7 +90,7 @@ class CoreDataService {
         if let entity = try? container.viewContext.fetch(request).first {
             var w = WeekData()
             w.keep = entity.keep ?? ""; w.problem = entity.problem ?? ""; w.reflection = entity.reflection ?? ""
-            if let data = entity.tryListData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { w.tryList = dec } // 💡 修正
+            if let data = entity.tryListData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { w.tryList = dec }
             if let data = entity.goalsData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { w.goals = dec }
             return w
         }
@@ -108,7 +116,7 @@ class CoreDataService {
         if let entity = try? container.viewContext.fetch(request).first {
             var m = MonthData()
             m.keep = entity.keep ?? ""; m.problem = entity.problem ?? ""; m.reflection = entity.reflection ?? ""
-            if let data = entity.tryListData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { m.tryList = dec } // 💡 修正
+            if let data = entity.tryListData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { m.tryList = dec }
             if let data = entity.monthlyGoalsData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { m.monthlyGoals = dec }
             if let data = entity.weeklyGoalsData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { m.weeklyGoals = dec }
             if let data = entity.dailyGoalsData, let dec = try? JSONDecoder().decode([Goal].self, from: data) { m.dailyGoals = dec }

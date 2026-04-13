@@ -1,4 +1,7 @@
-// GoalViewModel.swift を以下の内容で差し替え
+//
+//  GoalViewModel.swift
+//  GoalTracker
+//
 
 import SwiftUI
 import Combine
@@ -19,6 +22,16 @@ class GoalViewModel: ObservableObject {
     private let settingsKey = "app_settings_storage"
     
     init() { loadSettings(); loadFutureVisions(); loadCachedData() }
+    
+    private func sortTasks(_ tasks: inout [Task]) {
+        tasks.sort { t1, t2 in
+            if t1.type != t2.type {
+                let priority: [TaskType: Int] = [.dailyGoal: 0, .tryCarryOver: 1, .normal: 2]
+                return (priority[t1.type] ?? 3) < (priority[t2.type] ?? 3)
+            }
+            return t1.id.uuidString < t2.id.uuidString
+        }
+    }
     
     // MARK: - Keys & Titles
     func dateKey(_ date: Date) -> String { return ymdFormatter.string(from: date) }
@@ -46,7 +59,11 @@ class GoalViewModel: ObservableObject {
     }
     func getMonthlyTitle(for date: Date) -> String { let f = DateFormatter(); f.dateFormat = "yyyy年M月"; return f.string(from: date) }
     
-    func getNote(for date: Date) -> DailyNote { return coreData.fetchDailyNote(for: dateKey(date)) }
+    func getNote(for date: Date) -> DailyNote {
+        var note = coreData.fetchDailyNote(for: dateKey(date))
+        sortTasks(&note.tasks)
+        return note
+    }
     func getWeekData(for date: Date) -> WeekData { return coreData.fetchWeekData(for: getCustomWeekInfo(for: date).key) }
     func getMonthData(for date: Date) -> MonthData { return coreData.fetchMonthData(for: monthKey(date)) }
     
@@ -62,6 +79,7 @@ class GoalViewModel: ObservableObject {
     // MARK: - Tasks Updates
     func addTask(title: String, for date: Date) {
         var note = getNote(for: date); note.tasks.append(Task(title: title, type: .normal))
+        sortTasks(&note.tasks)
         coreData.saveDailyNote(note, for: dateKey(date))
         if Calendar.current.isDate(date, inSameDayAs: selectedDate) { currentDailyNote = note }
         currentDailyStreak = calculateDailyStreak()
@@ -70,6 +88,7 @@ class GoalViewModel: ObservableObject {
         var note = getNote(for: date)
         if let idx = note.tasks.firstIndex(where: { $0.id == id }) {
             note.tasks[idx].isCompleted.toggle()
+            sortTasks(&note.tasks)
             coreData.saveDailyNote(note, for: dateKey(date))
             if Calendar.current.isDate(date, inSameDayAs: selectedDate) { currentDailyNote = note }
             currentDailyStreak = calculateDailyStreak()
@@ -86,6 +105,7 @@ class GoalViewModel: ObservableObject {
         if let idx = note.tasks.firstIndex(where: { $0.id == id }) {
             note.tasks[idx].title = newTitle
             note.tasks[idx].categoryId = newCategoryId
+            sortTasks(&note.tasks)
             coreData.saveDailyNote(note, for: dateKey(date))
             if Calendar.current.isDate(date, inSameDayAs: selectedDate) { currentDailyNote = note }
         }
@@ -93,13 +113,18 @@ class GoalViewModel: ObservableObject {
     
     // MARK: - KPT Updates
     enum ReflectionField { case keep, problem, reflection }
+    
     func updateDailyNote(_ text: String, field: ReflectionField, date: Date) {
-        var note = getNote(for: date); if field == .keep { note.keep = text } else { note.problem = text }
+        var note = getNote(for: date)
+        if field == .keep { note.keep = text }
+        else if field == .problem { note.problem = text }
+        // 💡 追加：日次の「自由記述」を保存できるように分岐を追加
+        else if field == .reflection { note.reflection = text }
+        
         coreData.saveDailyNote(note, for: dateKey(date))
         if Calendar.current.isDate(date, inSameDayAs: selectedDate) { currentDailyNote = note }
     }
     
-    // Try更新系は Goal型を受け取るように修正
     func updateDailyTryList(_ list: [Goal], date: Date) {
         var note = getNote(for: date); note.tryList = list
         coreData.saveDailyNote(note, for: dateKey(date))
@@ -156,12 +181,10 @@ class GoalViewModel: ObservableObject {
         let tasks = getNote(for: date).tasks; guard !tasks.isEmpty else { return 0.0 }
         return Double(tasks.filter { $0.isCompleted }.count) / Double(tasks.count)
     }
-    
     func getValidDates(from dates: [Date]) -> [Date] {
         let today = Calendar.current.startOfDay(for: Date())
         return dates.filter { Calendar.current.startOfDay(for: $0) <= today }
     }
-    
     func getWeeklyDailyAvgRate(for date: Date) -> Double {
         let dates = getValidDates(from: getCustomWeekInfo(for: date).dates)
         guard !dates.isEmpty else { return 0 }
@@ -198,7 +221,6 @@ class GoalViewModel: ObservableObject {
         let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date)
         return dates.reduce(0) { sum, d in sum + getNote(for: d).tasks.filter { $0.isCompleted && $0.type == .tryCarryOver }.count }
     }
-    
     func getWeeklyTotalRate(for date: Date) -> Double { return (getWeeklyDailyAvgRate(for: date) + getWeeklyGoalRate(for: date)) / 2.0 }
     func getMonthlyTotalRate(for date: Date) -> Double { return (getMonthlyDailyAvgRate(for: date) + getMonthlyWeeklyGoalAvgRate(for: date) + getMonthlyGoalRate(for: date)) / 3.0 }
 
@@ -220,7 +242,7 @@ class GoalViewModel: ObservableObject {
             let prevDate = Calendar.current.date(byAdding: isWeekly ? .day : .month, value: isWeekly ? -7 : -1, to: date) ?? date
             let prevRate = isWeekly ? getWeeklyTotalRate(for: prevDate) : getMonthlyTotalRate(for: prevDate)
             let diff = Int(round((currentRate - prevRate) * 100))
-            if diff > 0 { return "\(target)比 ＋\(diff)%🎉" } else if diff < 0 { return "\(target)比 \(diff)%📉" } else { return "\(target)と同等✨" }
+            if diff > 0 { return "\(target)比 ＋\(diff)%🎉" } else if diff < 0 { return "\(target)比 \(diff)%📉" } else { return "\(target)と同じペース✨" }
         }
     }
     
@@ -228,8 +250,6 @@ class GoalViewModel: ObservableObject {
     func syncAll(for date: Date) {
         var note = getNote(for: date); let monthData = getMonthData(for: date)
         let dailyGoalTitles = monthData.dailyGoals.map { $0.title }
-        
-        // 💡 修正：日次タスクに同期するのは「昨日のTry」のみにする
         let allTrys = getYesterdayTryList(for: date).map{"昨日のTry: "+$0}
         
         note.tasks.removeAll { ($0.type == .dailyGoal && !dailyGoalTitles.contains($0.title)) || ($0.type == .tryCarryOver && !allTrys.contains($0.title)) }
@@ -238,6 +258,8 @@ class GoalViewModel: ObservableObject {
             else { note.tasks.append(Task(title: g.title, type: .dailyGoal, categoryId: g.categoryId)) }
         }
         for t in allTrys { if !note.tasks.contains(where: { $0.title == t && $0.type == .tryCarryOver }) { note.tasks.append(Task(title: t, type: .tryCarryOver)) } }
+        
+        sortTasks(&note.tasks)
         coreData.saveDailyNote(note, for: dateKey(date))
         
         var weekData = getWeekData(for: date); let weeklyGoalTitles = monthData.weeklyGoals.map { $0.title }
@@ -258,14 +280,12 @@ class GoalViewModel: ObservableObject {
         let cal = Calendar.current; guard let firstDay = cal.date(from: cal.dateComponents([.year, .month], from: date)), let prevLast = cal.date(byAdding: .day, value: -1, to: firstDay) else { return [] }
         return getMonthData(for: prevLast).tryList
     }
-    
     func getPreviousWeekDate(from date: Date) -> Date { return Calendar.current.date(byAdding: .day, value: -7, to: date) ?? date }
     func getPreviousMonthDate(from date: Date) -> Date {
         let cal = Calendar.current; guard let first = cal.date(from: cal.dateComponents([.year, .month], from: date)) else { return date }
         return cal.date(byAdding: .day, value: -1, to: first) ?? date
     }
 
-    // (残りのカテゴリヘルパー、未来の自分、設定、通知等のメソッドは維持)
     func getCategory(id: String) -> CategoryItem { return appSettings.categories.first(where: { $0.id == id }) ?? CategoryItem(id: "none", name: "指定なし", colorName: "gray") }
     func loadFutureVisions() { self.futureVisions = coreData.fetchFutureVisions() }
     func addFutureVision(title: String) { futureVisions.append(FutureVision(title: title)); coreData.saveFutureVisions(futureVisions) }

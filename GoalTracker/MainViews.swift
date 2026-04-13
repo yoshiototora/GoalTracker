@@ -16,13 +16,17 @@ struct HomeView: View {
     @AppStorage("goalTutorialStep") var tutorialStep = 0
     @State private var editingTask: Task? = nil
     
+    // 💡 今日かどうかを判定するプロパティを追加
+    private var isToday: Bool { Calendar.current.isDateInToday(viewModel.selectedDate) }
+    
     var body: some View {
         NavigationView {
             VStack {
-                Text(viewModel.dateKey(viewModel.selectedDate)).font(.caption).foregroundColor(.gray)
+                // 💡 タイトルに日付が出るので、以前あった小さな日付テキストは削除してスッキリさせました
                 StreakBadgeView(streak: viewModel.currentDailyStreak)
                 HStack {
-                    TextField("今日だけのタスク...", text: $newTaskTitle)
+                    // 💡 今日以外はプレースホルダー（薄い文字）を変更
+                    TextField(isToday ? "今日やること..." : "この日のタスク...", text: $newTaskTitle)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .focused($isInputFocused)
                         .onSubmit { addTask() }
@@ -43,8 +47,8 @@ struct HomeView: View {
                         )
                     } else {
                         EmptyStateView(
-                            title: "今日のタスクはありません",
-                            description: "今日のやるべきことを追加してみましょう！",
+                            title: isToday ? "今日のタスクはありません" : "タスクはありません",
+                            description: isToday ? "今日のやるべきことを追加してみましょう！" : "この日のタスクを追加してみましょう！",
                             buttonTitle: "タスクを追加",
                             iconName: "checklist.unchecked",
                             action: { isInputFocused = true }
@@ -94,9 +98,32 @@ struct HomeView: View {
                     }
                 }
             }
-            .navigationTitle("今日のタスク")
+            // 💡 タイトルを「今日かどうか」で自動切り替え
+            .navigationTitle(isToday ? "今日のタスク" : viewModel.getDailyTitle(for: viewModel.selectedDate))
             .onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
-            .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { isInputFocused = false } } }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { isInputFocused = false } }
+                
+                // 💡 今日以外の日を見ている時だけ「今日に戻る」ボタンを右上に表示
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if !isToday {
+                        Button(action: {
+                            withAnimation { viewModel.selectedDate = Date() }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.uturn.backward.circle")
+                                Text("今日に戻る")
+                            }
+                            .font(.caption).bold()
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+                    }
+                }
+            }
         }
     }
     private func addTask() { if !newTaskTitle.isEmpty { viewModel.addTask(title: newTaskTitle, for: viewModel.selectedDate); newTaskTitle = "" } }
@@ -127,6 +154,9 @@ struct ReflectionView: View {
     private var isLastDayOfMonth: Bool { let cal = Calendar.current; let date = viewModel.selectedDate; let nextDay = cal.date(byAdding: .day, value: 1, to: date) ?? date; return cal.component(.month, from: date) != cal.component(.month, from: nextDay) }
     private var isDecember: Bool { Calendar.current.component(.month, from: viewModel.selectedDate) == 12 }
     
+    // 💡 追加：今日かどうかを判定するプロパティ
+    private var isToday: Bool { Calendar.current.isDateInToday(viewModel.selectedDate) }
+    
     let dailyTemplates = ["読書を10分", "水を1.5L飲む", "スクワット15回", "日記を1行書く", "5分片付け"]
     let weeklyTemplates = ["ジムに2回行く", "本を1冊読む", "休肝日を2日作る", "作り置きをする", "週末に掃除機"]
     let monthlyTemplates = ["体重を1kg落とす", "本を3冊読む", "映画を3本見る", "貯金1万円", "新しい場所に行く"]
@@ -150,9 +180,33 @@ struct ReflectionView: View {
                     if isDecember { yearlyTab().tag(3) }
                 }.tabViewStyle(.page(indexDisplayMode: .never))
             }
-            .navigationTitle("振り返り")
+            // 💡 タイトルを自動切り替え（長くなりすぎないようにインライン表示に）
+            .navigationTitle(isToday ? "振り返り" : "\(viewModel.getDailyTitle(for: viewModel.selectedDate))")
+            .navigationBarTitleDisplayMode(.inline)
             .onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
-            .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { isKeyboardVisible = false } } }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完了") { isKeyboardVisible = false } }
+                
+                // 💡 今日以外の日を見ている時だけ「今日に戻る」ボタンを右上に表示
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if !isToday {
+                        Button(action: {
+                            withAnimation { viewModel.selectedDate = Date() }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.uturn.backward.circle")
+                                Text("今日に戻る")
+                            }
+                            .font(.caption).bold()
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -165,6 +219,7 @@ struct ReflectionView: View {
                     TextEditorView(title: "Keep（できたこと）", text: Binding(get: { note.keep }, set: { viewModel.updateDailyNote($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：午前中に一番重いタスクを終わらせることができた！").focused($isKeyboardVisible)
                     TextEditorView(title: "Problem（課題）", text: Binding(get: { note.problem }, set: { viewModel.updateDailyNote($0, field: .problem, date: viewModel.selectedDate) }), placeholder: "例：夕方、SNSを無意識に見てしまい時間が溶けた").focused($isKeyboardVisible)
                     GoalListSection(title: "Try（できなかったことの次のアクション）", iconColor: .blue, goals: note.tryList, viewModel: viewModel, showCheckboxes: false, templates: [], onUpdate: { viewModel.updateDailyTryList($0, date: viewModel.selectedDate) })
+                    TextEditorView(title: "振り返り（自由記述）", text: Binding(get: { note.reflection }, set: { viewModel.updateDailyNote($0, field: .reflection, date: viewModel.selectedDate) }), minHeight: 120, placeholder: "例：今日は全体的に集中して取り組めた！明日は〇〇を意識しよう。").focused($isKeyboardVisible)
                 }.padding(.horizontal)
             }.padding(.vertical)
         }
@@ -389,7 +444,7 @@ struct TutorialBubble: View {
     }
 }
 
-// MARK: - 目標リスト（💡 誤爆を防ぐカスタム開閉UI）
+// MARK: - 目標リスト
 struct GoalListSection: View {
     let title: String; let iconColor: Color; var goals: [Goal]
     @ObservedObject var viewModel: GoalViewModel
@@ -403,7 +458,6 @@ struct GoalListSection: View {
     @State private var isAdding = false
     @State private var editingGoal: Goal? = nil
     
-    // 折りたたみの状態を管理（最初は開いた状態）
     @State private var isExpanded: Bool = true
     
     var body: some View {
@@ -411,9 +465,7 @@ struct GoalListSection: View {
         
         VStack(alignment: .leading, spacing: 8) {
             
-            // 💡 カスタムヘッダー（タップ領域を完全に分離）
             HStack(alignment: .center) {
-                // ① 左側：タイトルと開閉矢印（ここをタップで開閉）
                 Button(action: { withAnimation { isExpanded.toggle() } }) {
                     HStack(spacing: 6) {
                         Image(systemName: "circle.fill")
@@ -426,14 +478,13 @@ struct GoalListSection: View {
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.gray)
                     }
-                    .contentShape(Rectangle()) // 余白もタップできるようにする
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
                 
                 Spacer()
                 
-                // ② 右側：アクションボタン（コピーと追加）
-                HStack(spacing: 16) { // 誤爆を防ぐため間隔を少し広げる
+                HStack(spacing: 16) {
                     if let onCopy = onCopy {
                         Button(action: onCopy) {
                             Image(systemName: "doc.on.clipboard")
@@ -448,12 +499,12 @@ struct GoalListSection: View {
                         Button(action: {
                             withAnimation {
                                 isAdding.toggle()
-                                if isAdding { isExpanded = true } // 追加時は強制的に開く
+                                if isAdding { isExpanded = true }
                             }
                         }) {
                             Image(systemName: "plus")
-                                .font(.system(size: 18, weight: .medium)) // 少し大きくして押しやすく
-                                .foregroundColor(.blue) // 追加ボタンを目立たせる
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.blue)
                                 .padding(.vertical, 4)
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -462,7 +513,6 @@ struct GoalListSection: View {
             }
             .padding(.bottom, 2)
             
-            // 💡 開いている時（isExpanded == true）だけ中身を表示
             if isExpanded {
                 ForEach(Array(goals.enumerated()), id: \.element.id) { index, goal in
                     let cat = categories.first(where: { $0.id == goal.categoryId }) ?? (categories.first ?? CategoryItem(name: "指定なし", colorName: "gray"))
@@ -564,7 +614,7 @@ struct GoalListSection: View {
                         }
                     }.padding(.top, 4)
                 }
-            } // isExpanded
+            }
             
         }.padding(12).background(Color(.systemBackground)).cornerRadius(10).shadow(color: Color.black.opacity(0.05), radius: 3)
         .onAppear { if let first = categories.first { selectedCategoryId = first.id } }

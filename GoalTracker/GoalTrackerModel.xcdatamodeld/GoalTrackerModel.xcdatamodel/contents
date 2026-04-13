@@ -4,6 +4,7 @@
         <attribute name="dateKey" optional="YES" attributeType="String"/>
         <attribute name="keep" optional="YES" attributeType="String"/>
         <attribute name="problem" optional="YES" attributeType="String"/>
+        <attribute name="reflection" optional="YES" attributeType="String"/>
         <attribute name="tryListData" optional="YES" attributeType="Binary"/>
     </entity>
     <entity name="FutureVisionEntity" representedClassName="FutureVisionEntity" syncable="YES" codeGenerationType="class">

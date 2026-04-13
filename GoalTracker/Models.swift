@@ -46,6 +46,7 @@ struct DailyNote: Codable {
     var tasks: [Task] = []
     var keep: String = ""
     var problem: String = ""
+    var reflection: String = "" // 💡 追加：自由記述用のデータ
     var tryList: [Goal] = []
     var dismissedTaskTitles: [String] = []
 }
@@ -95,7 +96,6 @@ struct MonthData: Codable {
         dailyGoals = try container.decodeIfPresent([Goal].self, forKey: .dailyGoals) ?? []
         keep = try container.decodeIfPresent(String.self, forKey: .keep) ?? ""
         problem = try container.decodeIfPresent(String.self, forKey: .problem) ?? ""
-        // 💡 修正：[String].self から [Goal].self に変更しました
         tryList = try container.decodeIfPresent([Goal].self, forKey: .tryList) ?? []
         reflection = try container.decodeIfPresent(String.self, forKey: .reflection) ?? ""
         futureSelf = try container.decodeIfPresent(String.self, forKey: .futureSelf) ?? ""
