@@ -36,8 +36,6 @@ struct ContentView: View {
                     SettingsView(viewModel: viewModel)
                         .tabItem { Image(systemName: "gearshape"); Text("設定") }.tag(4)
                 }
-                // 💡 修正：古いiOSでもエラーにならず、タブバーがキーボードの下に潜り込むようにする
-                .ignoresSafeArea(.keyboard, edges: .bottom)
                 
                 // キーボードが開いていない時だけ広告を表示
                 if !isKeyboardVisible {
@@ -53,7 +51,6 @@ struct ContentView: View {
                 showTutorial = true
             }
         }
-        // 重複していた処理を1つに統合
         .fullScreenCover(isPresented: $showTutorial) {
             TutorialView(viewModel: viewModel, isShowing: $showTutorial)
         }
