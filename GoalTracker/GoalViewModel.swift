@@ -192,19 +192,46 @@ class GoalViewModel: ObservableObject {
     }
     
     // MARK: - Sync Engine
-    func syncAll(for date: Date) {
-        var note = getNote(for: date); let monthData = getMonthData(for: date)
-        let dailyGoalTitles = monthData.dailyGoals.map { $0.title }
-        let allTrys = getYesterdayTryList(for: date).map{"昨日のTry: "+$0}
-        note.tasks.removeAll { ($0.type == .dailyGoal && !dailyGoalTitles.contains($0.title)) || ($0.type == .tryCarryOver && !allTrys.contains($0.title)) }
-        for g in monthData.dailyGoals { if let idx = note.tasks.firstIndex(where: { $0.title == g.title && $0.type == .dailyGoal }) { note.tasks[idx].categoryId = g.categoryId } else { note.tasks.append(Task(title: g.title, type: .dailyGoal, categoryId: g.categoryId)) } }
-        for t in allTrys { if !note.tasks.contains(where: { $0.title == t && $0.type == .tryCarryOver }) { note.tasks.append(Task(title: t, type: .tryCarryOver)) } }
-        sortTasks(&note.tasks); coreData.saveDailyNote(note, for: dateKey(date))
-        var weekData = getWeekData(for: date); let weeklyGoalTitles = monthData.weeklyGoals.map { $0.title }
-        weekData.goals.removeAll { !weeklyGoalTitles.contains($0.title) }
-        for t in monthData.weeklyGoals { if !weekData.goals.contains(where: { $0.title == t.title }) { weekData.goals.append(Goal(title: t.title, categoryId: t.categoryId)) } }
-        coreData.saveWeekData(weekData, for: getCustomWeekInfo(for: date).key); loadCachedData()
-    }
+        func syncAll(for date: Date) {
+            var note = getNote(for: date); let monthData = getMonthData(for: date)
+            let dailyGoalTitles = monthData.dailyGoals.map { $0.title }
+            
+            // 🔴 以前のコード（削除またはコメントアウト）
+            // let allTrys = getYesterdayTryList(for: date).map{"昨日のTry: "+$0}
+            // note.tasks.removeAll { ($0.type == .dailyGoal && !dailyGoalTitles.contains($0.title)) || ($0.type == .tryCarryOver && !allTrys.contains($0.title)) }
+            
+            // 🟢 新しいコード：Goalオブジェクトとして取得し、カテゴリを保持する
+            let yesterdayTryGoals = getYesterdayTryGoals(for: date)
+            let allTryTitles = yesterdayTryGoals.map { "昨日のTry: " + $0.title }
+            
+            note.tasks.removeAll { ($0.type == .dailyGoal && !dailyGoalTitles.contains($0.title)) || ($0.type == .tryCarryOver && !allTryTitles.contains($0.title)) }
+            
+            // 日次目標の同期
+            for g in monthData.dailyGoals {
+                if let idx = note.tasks.firstIndex(where: { $0.title == g.title && $0.type == .dailyGoal }) {
+                    note.tasks[idx].categoryId = g.categoryId
+                } else {
+                    note.tasks.append(Task(title: g.title, type: .dailyGoal, categoryId: g.categoryId))
+                }
+            }
+            
+            // 🟢 新しいコード：Tryの引き継ぎ時に categoryId をセットする
+            for tryGoal in yesterdayTryGoals {
+                let taskTitle = "昨日のTry: " + tryGoal.title
+                if let idx = note.tasks.firstIndex(where: { $0.title == taskTitle && $0.type == .tryCarryOver }) {
+                    note.tasks[idx].categoryId = tryGoal.categoryId // 既存タスクのカテゴリを更新
+                } else {
+                    note.tasks.append(Task(title: taskTitle, type: .tryCarryOver, categoryId: tryGoal.categoryId)) // 新規追加時にカテゴリを設定
+                }
+            }
+            
+            sortTasks(&note.tasks); coreData.saveDailyNote(note, for: dateKey(date))
+            
+            var weekData = getWeekData(for: date); let weeklyGoalTitles = monthData.weeklyGoals.map { $0.title }
+            weekData.goals.removeAll { !weeklyGoalTitles.contains($0.title) }
+            for t in monthData.weeklyGoals { if !weekData.goals.contains(where: { $0.title == t.title }) { weekData.goals.append(Goal(title: t.title, categoryId: t.categoryId)) } }
+            coreData.saveWeekData(weekData, for: getCustomWeekInfo(for: date).key); loadCachedData()
+        }
     
     // MARK: - Baton Support
     func getYesterdayTryList(for date: Date) -> [String] { return getNote(for: Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date).tryList.map { $0.title } }
@@ -214,6 +241,9 @@ class GoalViewModel: ObservableObject {
     func getPreviousMonthDate(from date: Date) -> Date { let cal = Calendar.current; guard let first = cal.date(from: cal.dateComponents([.year, .month], from: date)) else { return date }; return cal.date(byAdding: .day, value: -1, to: first) ?? date }
 
     func getCategory(id: String) -> CategoryItem { return appSettings.categories.first(where: { $0.id == id }) ?? CategoryItem(id: "none", name: "指定なし", colorName: "gray") }
+    func getYesterdayTryGoals(for date: Date) -> [Goal] {
+            return getNote(for: Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date).tryList
+        }
     
     // MARK: - Future Vision
     func loadFutureVisions() { self.futureVisions = coreData.fetchFutureVisions() }

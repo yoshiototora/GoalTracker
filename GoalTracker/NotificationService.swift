@@ -40,20 +40,20 @@ class NotificationService {
         
         let actions = [
             "1分だけやってみませんか？",
-            "1つだけでOKです！",
-            "今やってしまいましょう🏃‍♂️",
-            "少しだけ手をつけてみませんか？"
+            "1つだけでもOKです！",
+            "今なら少しできそうです",
+            "まずは少しだけ始めてみましょう"
         ]
         let action = actions.randomElement() ?? "1分だけやってみませんか？"
         
         var finalMessage = "\(baseMessage)\n\(action)"
         
         if streak > 0 {
-            finalMessage += "（今日やれば\(streak + 1)日連続！🔥）"
+            finalMessage += "（今日できれば\(streak + 1)日連続！🔥）"
         }
         
         if Calendar.current.component(.weekday, from: Date()) == 2 {
-            return "🌱 週のスタート！\n\(finalMessage)"
+            return "🌱 新しい1週間の始まりです\n\(finalMessage)"
         }
         
         return finalMessage
@@ -71,19 +71,19 @@ class NotificationService {
         }()
         
         if isLastDayOfMonth {
-            return "📅 振り返りタイミング！\n今月の記録を整理して来月に備えましょう。"
+            return "📅 振り返りタイミングです\n今月を少し振り返って、来月に繋げてみませんか？"
         } else if weekday == 1 {
-            return "☕️ 週末の振り返りタイミング！\n今週を少し振り返って、来週に繋げてみませんか？"
+            return "☕️ 今週を少し振り返る時間です\n来週に向けて整えてみませんか？"
         }
         
         if let tryItem = yesterdayTrys.filter({ !$0.isEmpty }).randomElement() {
-            return "昨日のTry「\(tryItem)」\n今日はどうでしたか？1分でメモ📝"
+            return "昨日のTry「\(tryItem)」\n今日はどうでしたか？"
         }
         
         let genericActions = [
-            "1分で終わります。今日のKPTを書きませんか？",
-            "完璧じゃなくてOK。今日できたこと（Keep）を1つメモ！",
-            "今日できなかったことは、明日のTryにすれば大丈夫💡"
+            "今日はどんな1日でしたか？",
+            "よかったことを1つだけ書いてみませんか？",
+            "明日のために、少しだけ振り返ってみましょう"
         ]
         
         return genericActions.randomElement() ?? "今日の振り返りをしましょう📝"

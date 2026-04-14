@@ -27,8 +27,19 @@ struct HomeView: View {
                             ForEach(currentTasks) { task in
                                 let cat = viewModel.getCategory(id: task.categoryId)
                                 HStack(spacing: 12) {
-                                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle").foregroundColor(task.isCompleted ? .green : cat.color).font(.system(size: 22))
-                                    if task.type == .dailyGoal { Text(task.title).bold().strikethrough(task.isCompleted).foregroundColor(task.isCompleted ? .gray : .primary) } else if task.type == .tryCarryOver { Text(task.title).strikethrough(task.isCompleted).foregroundColor(.blue) } else { Text(task.title).strikethrough(task.isCompleted) }
+                                    // 💡 丸の色はすでに cat.color が指定されているので、ViewModelの修正が効いて色が変わります！
+                                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(task.isCompleted ? .green : cat.color)
+                                        .font(.system(size: 22))
+                                    
+                                    // 💡 文字の色は .blue などを外し、未完了なら通常の文字色（.primary）、完了ならグレー（.gray）にします
+                                    if task.type == .dailyGoal {
+                                        Text(task.title).bold().strikethrough(task.isCompleted).foregroundColor(task.isCompleted ? .gray : .primary)
+                                    } else {
+                                        // tryCarryOver も normal も同じスタイルで統一
+                                        Text(task.title).strikethrough(task.isCompleted).foregroundColor(task.isCompleted ? .gray : .primary)
+                                    }
+                                    
                                     Spacer()
                                 }.contentShape(Rectangle())
                                 .onTapGesture { if task.isYearlyReflection && Calendar.current.component(.month, from: viewModel.selectedDate) != 12 { return }; let impact = UIImpactFeedbackGenerator(style: .medium); impact.impactOccurred(); viewModel.toggleTask(id: task.id, for: viewModel.selectedDate) }
