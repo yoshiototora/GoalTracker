@@ -12,11 +12,44 @@ struct AppSettings: Codable {
     var reflectionNotificationEnabled: Bool = false
     var reflectionNotificationTime: Date = Date()
     
+    var skipShortFirstWeek: Bool = true
+    var shortWeekThreshold: Int = 3
+    var skipShortLastWeek: Bool = true
+    var shortLastWeekThreshold: Int = 3
+    
+    var appStartDate: Date? = nil
+    
     var categories: [CategoryItem] = [
         CategoryItem(id: "action", name: "行動習慣", colorName: "blue"),
         CategoryItem(id: "lifestyle", name: "生活習慣", colorName: "yellow"),
         CategoryItem(id: "none", name: "指定なし", colorName: "gray")
     ]
+    
+    // 🟢 追加：データ追加時のクラッシュと初期化を防ぐ安全装置
+    init() {}
+    
+    enum CodingKeys: String, CodingKey {
+        case goalNotificationEnabled, goalNotificationTime, reflectionNotificationEnabled, reflectionNotificationTime
+        case skipShortFirstWeek, shortWeekThreshold, skipShortLastWeek, shortLastWeekThreshold, appStartDate, categories
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        goalNotificationEnabled = try container.decodeIfPresent(Bool.self, forKey: .goalNotificationEnabled) ?? false
+        goalNotificationTime = try container.decodeIfPresent(Date.self, forKey: .goalNotificationTime) ?? Date()
+        reflectionNotificationEnabled = try container.decodeIfPresent(Bool.self, forKey: .reflectionNotificationEnabled) ?? false
+        reflectionNotificationTime = try container.decodeIfPresent(Date.self, forKey: .reflectionNotificationTime) ?? Date()
+        skipShortFirstWeek = try container.decodeIfPresent(Bool.self, forKey: .skipShortFirstWeek) ?? true
+        shortWeekThreshold = try container.decodeIfPresent(Int.self, forKey: .shortWeekThreshold) ?? 3
+        skipShortLastWeek = try container.decodeIfPresent(Bool.self, forKey: .skipShortLastWeek) ?? true
+        shortLastWeekThreshold = try container.decodeIfPresent(Int.self, forKey: .shortLastWeekThreshold) ?? 3
+        appStartDate = try container.decodeIfPresent(Date.self, forKey: .appStartDate)
+        categories = try container.decodeIfPresent([CategoryItem].self, forKey: .categories) ?? [
+            CategoryItem(id: "action", name: "行動習慣", colorName: "blue"),
+            CategoryItem(id: "lifestyle", name: "生活習慣", colorName: "yellow"),
+            CategoryItem(id: "none", name: "指定なし", colorName: "gray")
+        ]
+    }
 }
 
 struct CategoryItem: Identifiable, Codable, Equatable {
@@ -46,7 +79,7 @@ struct DailyNote: Codable {
     var tasks: [Task] = []
     var keep: String = ""
     var problem: String = ""
-    var reflection: String = "" // 💡 追加：自由記述用のデータ
+    var reflection: String = ""
     var tryList: [Goal] = []
     var dismissedTaskTitles: [String] = []
 }
@@ -62,6 +95,19 @@ struct Goal: Identifiable, Equatable, Codable {
         self.title = title
         self.isCompleted = isCompleted
         self.categoryId = categoryId
+    }
+    
+    // 🟢 追加：古いGoalデータも安全に読み込む処理
+    enum CodingKeys: String, CodingKey {
+        case id, title, isCompleted, categoryId
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
+        isCompleted = try container.decodeIfPresent(Bool.self, forKey: .isCompleted) ?? false
+        categoryId = try container.decodeIfPresent(String.self, forKey: .categoryId) ?? "none"
     }
 }
 
@@ -168,11 +214,4 @@ struct FutureVision: Identifiable, Codable, Equatable {
         let completed = subTasks.filter { $0.isCompleted }.count
         return Double(completed) / Double(subTasks.count)
     }
-}
-
-struct UserStats: Codable {
-    var dailyStreak: Int = 0
-    var lastCompletedDate: String = ""
-    var monthlyReflectionStreak: Int = 0
-    var lastReflectionMonth: String = ""
 }

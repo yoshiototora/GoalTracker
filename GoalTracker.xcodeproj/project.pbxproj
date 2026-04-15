@@ -7,14 +7,62 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8E4EE4362F8F296E00C4868F /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4EE4352F8F296E00C4868F /* WidgetKit.framework */; };
+		8E4EE4382F8F296E00C4868F /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4EE4372F8F296E00C4868F /* SwiftUI.framework */; };
+		8E4EE4432F8F297000C4868F /* GoalWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8E4EE4332F8F296D00C4868F /* GoalWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8ED3C5912F88CD89002C7E07 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 8ED3C5902F88CD89002C7E07 /* GoogleMobileAds */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		8E4EE4412F8F297000C4868F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8EF30FE32F7F97E100F5CEAD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8E4EE4322F8F296D00C4868F;
+			remoteInfo = GoalWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8E4EE4482F8F297000C4868F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8E4EE4432F8F297000C4868F /* GoalWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		8E4EE4332F8F296D00C4868F /* GoalWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GoalWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8E4EE4352F8F296E00C4868F /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		8E4EE4372F8F296E00C4868F /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		8E4EE4492F8F298700C4868F /* GoalWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GoalWidgetExtension.entitlements; sourceTree = "<group>"; };
 		8EF30FEB2F7F97E100F5CEAD /* GoalTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GoalTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8E4EE4472F8F297000C4868F /* Exceptions for "GoalWidget" folder in "GoalWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8E4EE4322F8F296D00C4868F /* GoalWidgetExtension */;
+		};
+		8E4EE44B2F8F2D2200C4868F /* Exceptions for "GoalTracker" folder in "GoalWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CoreDataService.swift,
+				GoalTrackerModel.xcdatamodeld,
+				Models.swift,
+				NotificationService.swift,
+			);
+			target = 8E4EE4322F8F296D00C4868F /* GoalWidgetExtension */;
+		};
 		8ED3C5932F88D408002C7E07 /* Exceptions for "GoalTracker" folder in "GoalTracker" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -25,10 +73,19 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		8E4EE4392F8F296E00C4868F /* GoalWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8E4EE4472F8F297000C4868F /* Exceptions for "GoalWidget" folder in "GoalWidgetExtension" target */,
+			);
+			path = GoalWidget;
+			sourceTree = "<group>";
+		};
 		8EF30FED2F7F97E100F5CEAD /* GoalTracker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				8ED3C5932F88D408002C7E07 /* Exceptions for "GoalTracker" folder in "GoalTracker" target */,
+				8E4EE44B2F8F2D2200C4868F /* Exceptions for "GoalTracker" folder in "GoalWidgetExtension" target */,
 			);
 			path = GoalTracker;
 			sourceTree = "<group>";
@@ -36,6 +93,15 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		8E4EE4302F8F296D00C4868F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8E4EE4382F8F296E00C4868F /* SwiftUI.framework in Frameworks */,
+				8E4EE4362F8F296E00C4868F /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8EF30FE82F7F97E100F5CEAD /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -47,10 +113,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		8E4EE4342F8F296E00C4868F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8E4EE4352F8F296E00C4868F /* WidgetKit.framework */,
+				8E4EE4372F8F296E00C4868F /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		8EF30FE22F7F97E100F5CEAD = {
 			isa = PBXGroup;
 			children = (
+				8E4EE4492F8F298700C4868F /* GoalWidgetExtension.entitlements */,
 				8EF30FED2F7F97E100F5CEAD /* GoalTracker */,
+				8E4EE4392F8F296E00C4868F /* GoalWidget */,
+				8E4EE4342F8F296E00C4868F /* Frameworks */,
 				8EF30FEC2F7F97E100F5CEAD /* Products */,
 			);
 			sourceTree = "<group>";
@@ -59,6 +137,7 @@
 			isa = PBXGroup;
 			children = (
 				8EF30FEB2F7F97E100F5CEAD /* GoalTracker.app */,
+				8E4EE4332F8F296D00C4868F /* GoalWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -66,6 +145,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		8E4EE4322F8F296D00C4868F /* GoalWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8E4EE4442F8F297000C4868F /* Build configuration list for PBXNativeTarget "GoalWidgetExtension" */;
+			buildPhases = (
+				8E4EE42F2F8F296D00C4868F /* Sources */,
+				8E4EE4302F8F296D00C4868F /* Frameworks */,
+				8E4EE4312F8F296D00C4868F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8E4EE4392F8F296E00C4868F /* GoalWidget */,
+			);
+			name = GoalWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = GoalWidgetExtension;
+			productReference = 8E4EE4332F8F296D00C4868F /* GoalWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		8EF30FEA2F7F97E100F5CEAD /* GoalTracker */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8EF30FF62F7F97E300F5CEAD /* Build configuration list for PBXNativeTarget "GoalTracker" */;
@@ -73,10 +174,12 @@
 				8EF30FE72F7F97E100F5CEAD /* Sources */,
 				8EF30FE82F7F97E100F5CEAD /* Frameworks */,
 				8EF30FE92F7F97E100F5CEAD /* Resources */,
+				8E4EE4482F8F297000C4868F /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				8E4EE4422F8F297000C4868F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				8EF30FED2F7F97E100F5CEAD /* GoalTracker */,
@@ -99,6 +202,9 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					8E4EE4322F8F296D00C4868F = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					8EF30FEA2F7F97E100F5CEAD = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -122,11 +228,19 @@
 			projectRoot = "";
 			targets = (
 				8EF30FEA2F7F97E100F5CEAD /* GoalTracker */,
+				8E4EE4322F8F296D00C4868F /* GoalWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		8E4EE4312F8F296D00C4868F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8EF30FE92F7F97E100F5CEAD /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -137,6 +251,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		8E4EE42F2F8F296D00C4868F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8EF30FE72F7F97E100F5CEAD /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -146,7 +267,77 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		8E4EE4422F8F297000C4868F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8E4EE4322F8F296D00C4868F /* GoalWidgetExtension */;
+			targetProxy = 8E4EE4412F8F297000C4868F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		8E4EE4452F8F297000C4868F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = GoalWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2DL22K4TF3;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GoalWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HabitSpark;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.koki.GoalTracker.GoalWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8E4EE4462F8F297000C4868F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = GoalWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2DL22K4TF3;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GoalWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HabitSpark;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.koki.GoalTracker.GoalWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		8EF30FF42F7F97E300F5CEAD /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -273,12 +464,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = GoalTracker/GoalTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2DL22K4TF3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GoalTracker/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HabitSpark;
 				INFOPLIST_KEY_NSUserTrackingUsageDescription = "お客様に最適化された広告を表示するために使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -308,12 +501,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = GoalTracker/GoalTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2DL22K4TF3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GoalTracker/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HabitSpark;
 				INFOPLIST_KEY_NSUserTrackingUsageDescription = "お客様に最適化された広告を表示するために使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -341,6 +536,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		8E4EE4442F8F297000C4868F /* Build configuration list for PBXNativeTarget "GoalWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8E4EE4452F8F297000C4868F /* Debug */,
+				8E4EE4462F8F297000C4868F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		8EF30FE62F7F97E100F5CEAD /* Build configuration list for PBXProject "GoalTracker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

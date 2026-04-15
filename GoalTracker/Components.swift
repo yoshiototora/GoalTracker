@@ -1,20 +1,18 @@
 import SwiftUI
 
-// 💡 画面の余白タップでキーボードを閉じるための拡張機能（ここが正しい場所です）
 extension View {
     func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
 
-// 💡 改行に合わせて縦に伸び、常にカーソルを追従させる入力部品
 struct TextEditorView: View {
     let title: String; @Binding var text: String; var minHeight: CGFloat = 100; var placeholder: String = "入力..."
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.caption).bold().foregroundColor(.secondary)
             TextField(placeholder, text: $text, axis: .vertical)
-                .lineLimit(5...) // 最低5行、あとは無限に伸びる
+                .lineLimit(5...)
                 .padding(12)
                 .frame(minHeight: minHeight, alignment: .topLeading)
                 .background(Color(.systemGray6))
@@ -24,7 +22,6 @@ struct TextEditorView: View {
     }
 }
 
-// 💡 モチベーション重視の達成度カード
 struct ReflectionAchievementCard: View {
     let title: String; let rate1: Double; let rate2: Double?; let rate3: Double?; let color2: Color; let color3: Color
     let comparisonText: String?; let totalDoneCount: Int; let tryDoneCount: Int
@@ -58,13 +55,12 @@ struct ReflectionAchievementCard: View {
                 Divider().frame(height: 30)
                 VStack(alignment: .leading) { Text("Tryの実行").font(.caption2).foregroundColor(.secondary); Text("\(tryDoneCount)回").font(.headline).bold().foregroundColor(.blue) }
                 Spacer()
-                Text(total >= 0.8 ? "最高のペース！" : (total >= 0.5 ? "いい調子です！" : "一歩ずつ進もう")).font(.caption2.bold()).foregroundColor(.secondary).padding(.horizontal, 10).padding(.vertical, 6).background(Color(.systemGray6)).cornerRadius(8)
+                Text(total >= 0.8 ? "最高のペース" : (total >= 0.5 ? "いい調子です" : "一歩ずつ進もう")).font(.caption2.bold()).foregroundColor(.secondary).padding(.horizontal, 10).padding(.vertical, 6).background(Color(.systemGray6)).cornerRadius(8)
             }
         }.padding(20).background(Color(.systemBackground)).cornerRadius(20).shadow(color: .black.opacity(0.05), radius: 10, y: 5).padding(.horizontal)
     }
 }
 
-// 💡 カレンダー用のサマリーカード
 struct CompositeSummaryCard: View {
     let title: String; let rate1: Double; let rate2: Double?; let rate3: Double?; let color2: Color; let color3: Color
     let comparisonText: String?
@@ -95,22 +91,63 @@ struct CompositeSummaryCard: View {
     }
 }
 
-// 💡 カレンダーのマス目
+// 🟢 修正：星マークと、開始日前のグレーアウト処理を追加
 struct CalendarGridView: View {
     @ObservedObject var viewModel: GoalViewModel
     let displayDate: Date; @Binding var selectedDate: Date; @Binding var selectedTab: Int
     let cols = Array(repeating: GridItem(.flexible()), count: 7)
+    let weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+    
     var body: some View {
-        let days = generateDays(); let today = Calendar.current.startOfDay(for: Date())
-        LazyVGrid(columns: cols, spacing: 8) {
-            ForEach(0..<days.count, id: \.self) { i in
-                if let d = days[i] {
-                    let isSel = Calendar.current.isDate(d, inSameDayAs: selectedDate); let isFut = d > today
-                    RoundedRectangle(cornerRadius: 6).fill(isFut ? Color(.systemGray6) : getCol(d)).overlay(RoundedRectangle(cornerRadius: 6).stroke(isSel ? Color.blue : Color.clear, lineWidth: isSel ? 3 : 0)).aspectRatio(1, contentMode: .fit).overlay(Text("\(Calendar.current.component(.day, from: d))").font(.caption).foregroundColor(isFut ? .gray : (rate(d) >= 0.4 ? .white : .primary))).simultaneousGesture(TapGesture(count: 2).onEnded { if !isFut { selectedDate = d; selectedTab = 1 } }).simultaneousGesture(TapGesture(count: 1).onEnded { if !isFut { selectedDate = d } })
-                } else { Color.clear }
+        let days = generateDays()
+        let today = Calendar.current.startOfDay(for: Date())
+        let start = viewModel.appSettings.appStartDate.map { Calendar.current.startOfDay(for: $0) } ?? Date.distantPast
+        
+        VStack(spacing: 8) {
+            HStack {
+                ForEach(weekdays, id: \.self) { day in
+                    Text(day).font(.caption).bold().foregroundColor(.secondary).frame(maxWidth: .infinity)
+                }
+            }
+            
+            LazyVGrid(columns: cols, spacing: 8) {
+                ForEach(0..<days.count, id: \.self) { i in
+                    if let d = days[i] {
+                        let isSel = Calendar.current.isDate(d, inSameDayAs: selectedDate)
+                        let isFut = d > today
+                        let isBeforeStart = Calendar.current.startOfDay(for: d) < start
+                        let isDisabled = isFut || isBeforeStart
+                        let isStartDay = viewModel.appSettings.appStartDate != nil && Calendar.current.isDate(d, inSameDayAs: start)
+                        
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isDisabled ? Color(.systemGray6) : getCol(d))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(isSel ? Color.blue : Color.clear, lineWidth: isSel ? 3 : 0))
+                            .aspectRatio(1, contentMode: .fit)
+                            .overlay(
+                                ZStack {
+                                    Text("\(Calendar.current.component(.day, from: d))")
+                                        .font(.caption)
+                                        .foregroundColor(isDisabled ? .gray : (rate(d) >= 0.4 ? .white : .primary))
+                                    
+                                    if isStartDay {
+                                        VStack {
+                                            HStack {
+                                                Spacer()
+                                                Image(systemName: "star.fill").font(.system(size: 8)).foregroundColor(.yellow).padding(4)
+                                            }
+                                            Spacer()
+                                        }
+                                    }
+                                }
+                            )
+                            .simultaneousGesture(TapGesture(count: 2).onEnded { if !isDisabled { selectedDate = d; selectedTab = 1 } })
+                            .simultaneousGesture(TapGesture(count: 1).onEnded { if !isDisabled { selectedDate = d } })
+                    } else { Color.clear }
+                }
             }
         }.padding()
     }
+    
     func rate(_ d: Date) -> Double { viewModel.getDailyCompletionRate(for: d) }
     func getCol(_ d: Date) -> Color {
         let r = rate(d); let note = viewModel.getNote(for: d)
@@ -119,16 +156,22 @@ struct CalendarGridView: View {
         if r == 0 { return Color.yellow.opacity(0.3) }
         switch r { case ..<0.4: return Color(red: 0.65, green: 0.9, blue: 0.65); case 0.4..<0.75: return Color(red: 0.3, green: 0.75, blue: 0.3); case 0.75..<1.0: return Color(red: 0.15, green: 0.55, blue: 0.15); default: return Color(red: 0.05, green: 0.35, blue: 0.15) }
     }
+    
     func generateDays() -> [Date?] {
-        let cal = Calendar.current; guard let start = cal.date(from: cal.dateComponents([.year, .month], from: displayDate)), let range = cal.range(of: .day, in: .month, for: start) else { return [] }
-        let firstDay = cal.component(.weekday, from: start); var days: [Date?] = Array(repeating: nil, count: firstDay - 1)
+        var cal = Calendar.current
+        cal.firstWeekday = 2 // 月曜始まり
+        guard let start = cal.date(from: cal.dateComponents([.year, .month], from: displayDate)), let range = cal.range(of: .day, in: .month, for: start) else { return [] }
+        
+        let weekday = cal.component(.weekday, from: start)
+        let emptyCount = (weekday - 2 + 7) % 7
+        var days: [Date?] = Array(repeating: nil, count: emptyCount)
+        
         for i in 0..<range.count { if let d = cal.date(byAdding: .day, value: i, to: start) { days.append(d) } }; return days
     }
 }
 
-// 💡 豪華な演出
 struct LuxuriousCompletionEffect: View {
-    let completedCount: Int; let messages = ["素晴らしい軌跡を誇りに思いましょう！", "継続は力なり、ですね！"]
+    let completedCount: Int; let messages = ["素晴らしい軌跡を誇りに思いましょう", "継続は力なり、ですね"]
     @State private var showContent = false; @State private var opacities: [Double] = Array(repeating: 0.0, count: 42)
     var body: some View {
         ZStack {
@@ -144,12 +187,11 @@ struct LuxuriousCompletionEffect: View {
     }
 }
 
-// 💡 連続達成バッジ
 struct StreakBadgeView: View {
     let streak: Int
     var body: some View {
         if streak > 0 {
-            HStack(spacing: 8) { Image(systemName: "flame.fill").foregroundColor(streak >= 7 ? .red : .orange); Text("\(streak)日連続達成中！").font(.subheadline).bold().foregroundColor(streak >= 7 ? .red : .orange); if streak >= 30 { Image(systemName: "crown.fill").foregroundColor(.yellow) } else if streak >= 7 { Image(systemName: "medal.fill").foregroundColor(.yellow) } }.padding(.horizontal, 16).padding(.vertical, 10).frame(maxWidth: .infinity).background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1))).padding(.horizontal)
+            HStack(spacing: 8) { Image(systemName: "flame.fill").foregroundColor(streak >= 7 ? .red : .orange); Text("\(streak)日連続達成中").font(.subheadline).bold().foregroundColor(streak >= 7 ? .red : .orange); if streak >= 30 { Image(systemName: "crown.fill").foregroundColor(.yellow) } else if streak >= 7 { Image(systemName: "medal.fill").foregroundColor(.yellow) } }.padding(.horizontal, 16).padding(.vertical, 10).frame(maxWidth: .infinity).background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1))).padding(.horizontal)
         }
     }
 }

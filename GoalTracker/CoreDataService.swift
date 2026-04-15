@@ -12,6 +12,35 @@ class CoreDataService {
 
     private init() {
         container = NSPersistentContainer(name: "GoalTrackerModel")
+        
+        // 🟢 ウィジェットとデータ共有するためのApp Group ID
+        // （XcodeのSigning & Capabilitiesで設定したApp Group名と完全に一致させてください）
+        let appGroupID = "group.com.koki.GoalTracker"
+        
+        if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID) {
+            let storeURL = containerURL.appendingPathComponent("GoalTrackerModel.sqlite")
+            let description = NSPersistentStoreDescription(url: storeURL)
+            
+            // 🟢 既存のローカルデータがある場合は、AppGroup領域へ自動移行する
+            let defaultDirectoryURL = NSPersistentContainer.defaultDirectoryURL()
+            let oldStoreURL = defaultDirectoryURL.appendingPathComponent("GoalTrackerModel.sqlite")
+            
+            if FileManager.default.fileExists(atPath: oldStoreURL.path) && !FileManager.default.fileExists(atPath: storeURL.path) {
+                do {
+                    try FileManager.default.moveItem(at: oldStoreURL, to: storeURL)
+                    let oldShm = defaultDirectoryURL.appendingPathComponent("GoalTrackerModel.sqlite.shm")
+                    let newShm = containerURL.appendingPathComponent("GoalTrackerModel.sqlite.shm")
+                    if FileManager.default.fileExists(atPath: oldShm.path) { try FileManager.default.moveItem(at: oldShm, to: newShm) }
+                    let oldWal = defaultDirectoryURL.appendingPathComponent("GoalTrackerModel.sqlite.wal")
+                    let newWal = containerURL.appendingPathComponent("GoalTrackerModel.sqlite.wal")
+                    if FileManager.default.fileExists(atPath: oldWal.path) { try FileManager.default.moveItem(at: oldWal, to: newWal) }
+                } catch {
+                    print("CoreData移行エラー: \(error)")
+                }
+            }
+            container.persistentStoreDescriptions = [description]
+        }
+
         container.loadPersistentStores { description, error in
             if let error = error { fatalError("CoreDataエラー: \(error.localizedDescription)") }
         }
@@ -58,9 +87,7 @@ class CoreDataService {
             if let data = entity.tryListData, let decoded = try? JSONDecoder().decode([Goal].self, from: data) { tryList = decoded }
             var note = DailyNote(keep: entity.keep ?? "", problem: entity.problem ?? "", tryList: tryList)
             
-            // 💡 追加：保存された振り返りを読み込む
             note.reflection = entity.reflection ?? ""
-            
             note.tasks = fetchTasks(for: dateKey)
             return note
         }
@@ -74,8 +101,6 @@ class CoreDataService {
         let entity = (try? context.fetch(request).first) ?? DailyNoteEntity(context: context)
         
         entity.dateKey = dateKey; entity.keep = note.keep; entity.problem = note.problem
-        
-        // 💡 追加：振り返りを保存する
         entity.reflection = note.reflection
         
         if let encoded = try? JSONEncoder().encode(note.tryList) { entity.tryListData = encoded }

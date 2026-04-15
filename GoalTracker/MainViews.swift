@@ -20,26 +20,22 @@ struct HomeView: View {
                 let currentTasks = viewModel.currentDailyNote.tasks; let hasDailyGoals = !viewModel.currentMonthData.dailyGoals.isEmpty
                 if currentTasks.isEmpty {
                     if !hasDailyGoals { EmptyStateView(title: "目標を設定しましょう", description: "まずはカレンダータブから日次目標を追加してみましょう。", buttonTitle: "カレンダーを開く", iconName: "target", action: { selectedTab = 2; if tutorialStep == 0 { tutorialStep = 1 } }) }
-                    else { EmptyStateView(title: isToday ? "今日のタスクはありません" : "タスクはありません", description: "やるべきことを追加してみましょう！", buttonTitle: "タスクを追加", iconName: "checklist.unchecked", action: { isInputFocused = true }) }
+                    else { EmptyStateView(title: isToday ? "今日のタスクはありません" : "タスクはありません", description: "やるべきことを追加してみましょう", buttonTitle: "タスクを追加", iconName: "checklist.unchecked", action: { isInputFocused = true }) }
                 } else {
                     List {
                         Section {
                             ForEach(currentTasks) { task in
                                 let cat = viewModel.getCategory(id: task.categoryId)
                                 HStack(spacing: 12) {
-                                    // 💡 丸の色はすでに cat.color が指定されているので、ViewModelの修正が効いて色が変わります！
                                     Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                                         .foregroundColor(task.isCompleted ? .green : cat.color)
                                         .font(.system(size: 22))
                                     
-                                    // 💡 文字の色は .blue などを外し、未完了なら通常の文字色（.primary）、完了ならグレー（.gray）にします
                                     if task.type == .dailyGoal {
                                         Text(task.title).bold().strikethrough(task.isCompleted).foregroundColor(task.isCompleted ? .gray : .primary)
                                     } else {
-                                        // tryCarryOver も normal も同じスタイルで統一
                                         Text(task.title).strikethrough(task.isCompleted).foregroundColor(task.isCompleted ? .gray : .primary)
                                     }
-                                    
                                     Spacer()
                                 }.contentShape(Rectangle())
                                 .onTapGesture { if task.isYearlyReflection && Calendar.current.component(.month, from: viewModel.selectedDate) != 12 { return }; let impact = UIImpactFeedbackGenerator(style: .medium); impact.impactOccurred(); viewModel.toggleTask(id: task.id, for: viewModel.selectedDate) }
@@ -68,16 +64,90 @@ struct EmptyStateView: View {
     var body: some View { VStack(spacing: 20) { Spacer(); Image(systemName: iconName).font(.system(size: 70)).foregroundColor(.orange.opacity(0.7)).padding(.bottom, 10); Text(title).font(.title3).bold().foregroundColor(.primary); Text(description).font(.subheadline).foregroundColor(.secondary).multilineTextAlignment(.center).padding(.horizontal, 40); Button(action: action) { HStack { Image(systemName: "plus"); Text(buttonTitle) }.font(.headline).foregroundColor(.white).padding(.horizontal, 24).padding(.vertical, 12).background(Color.blue).cornerRadius(20).shadow(color: .blue.opacity(0.3), radius: 5, y: 3) }.padding(.top, 10); Spacer() }.contentShape(Rectangle()) }
 }
 
+struct ProgressListView: View {
+    let title: String
+    let items: [(title: String, progress: String)]
+    var body: some View {
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title).font(.caption).bold().foregroundColor(.secondary)
+                ForEach(items, id: \.title) { item in
+                    HStack {
+                        Text(item.title).font(.subheadline).foregroundColor(.primary)
+                        Spacer()
+                        Text(item.progress).font(.system(.subheadline, design: .rounded)).foregroundColor(.secondary)
+                    }
+                    Divider()
+                }
+            }
+            .padding(16).background(Color(.systemBackground)).cornerRadius(20).shadow(color: Color.black.opacity(0.05), radius: 10, y: 5).padding(.horizontal)
+        }
+    }
+}
+
 // MARK: - 振り返り画面
 struct ReflectionView: View {
     @ObservedObject var viewModel: GoalViewModel
-    @State private var reflectionType = 0; @State private var showYearlyAnimation = false
-    private var isSunday: Bool { Calendar.current.component(.weekday, from: viewModel.selectedDate) == 1 }
-    private var isLastDayOfMonth: Bool { let cal = Calendar.current; let date = viewModel.selectedDate; let nextDay = cal.date(byAdding: .day, value: 1, to: date) ?? date; return cal.component(.month, from: date) != cal.component(.month, from: nextDay) }
-    private var isDecember: Bool { Calendar.current.component(.month, from: viewModel.selectedDate) == 12 }
-    private var isToday: Bool { Calendar.current.isDateInToday(viewModel.selectedDate) }
+    @State private var reflectionType = 0
+    @State private var showYearlyAnimation = false
     
-    // 💡 テンプレート例文
+    private var isToday: Bool { Calendar.current.isDateInToday(viewModel.selectedDate) }
+    private var isDecember: Bool { Calendar.current.component(.month, from: viewModel.selectedDate) == 12 }
+    
+    private var isBeforeStart: Bool {
+        guard let start = viewModel.appSettings.appStartDate else { return false }
+        return Calendar.current.startOfDay(for: viewModel.selectedDate) < Calendar.current.startOfDay(for: start)
+    }
+    
+    private var shouldShowWeeklyReflection: Bool {
+        if isBeforeStart { return false }
+        let cal = Calendar.current
+        let isSunday = cal.component(.weekday, from: viewModel.selectedDate) == 1
+        guard isSunday else { return false }
+        
+        if viewModel.appSettings.skipShortFirstWeek {
+            let dayOfMonth = cal.component(.day, from: viewModel.selectedDate)
+            if dayOfMonth <= viewModel.appSettings.shortWeekThreshold { return false }
+        }
+        
+        let weekDates = viewModel.getCustomWeekInfo(for: viewModel.selectedDate).dates
+        let hasAnyActivity = weekDates.contains { !viewModel.getNote(for: $0).tasks.isEmpty }
+        let hasLastWeekTry = !viewModel.getLastWeeklyTryList(for: viewModel.selectedDate).isEmpty
+        return hasLastWeekTry || hasAnyActivity
+    }
+    
+    private var shouldShowMonthlyReflection: Bool {
+        if isBeforeStart { return false }
+        let cal = Calendar.current
+        let date = viewModel.selectedDate
+        let nextDay = cal.date(byAdding: .day, value: 1, to: date) ?? date
+        let isLastDayOfMonth = cal.component(.month, from: date) != cal.component(.month, from: nextDay)
+        guard isLastDayOfMonth else { return false }
+        
+        let monthDates = viewModel.getMonthDates(for: viewModel.selectedDate)
+        let hasAnyActivity = monthDates.contains { !viewModel.getNote(for: $0).tasks.isEmpty }
+        let hasLastMonthTry = !viewModel.getLastMonthlyTryList(for: viewModel.selectedDate).isEmpty
+        return hasLastMonthTry || hasAnyActivity
+    }
+    
+    private var shouldShowLastWeekInMonthly: Bool {
+        if isBeforeStart { return false }
+        let cal = Calendar.current
+        let date = viewModel.selectedDate
+        let nextDay = cal.date(byAdding: .day, value: 1, to: date) ?? date
+        let isLastDayOfMonth = cal.component(.month, from: date) != cal.component(.month, from: nextDay)
+        let isSunday = cal.component(.weekday, from: date) == 1
+        
+        guard isLastDayOfMonth && !isSunday else { return false }
+        
+        if viewModel.appSettings.skipShortLastWeek {
+            let weekday = cal.component(.weekday, from: date)
+            let daysInLastWeek = weekday == 1 ? 7 : weekday - 1
+            if daysInLastWeek <= viewModel.appSettings.shortLastWeekThreshold { return false }
+        }
+        return true
+    }
+    
     let dailyTemplates = ["読書を10分", "水を1.5L飲む", "スクワット15回", "日記を1行書く", "5分片付け"]
     let weeklyTemplates = ["ジムに2回行く", "本を1冊読む", "休肝日を2日作る", "作り置きをする", "週末に掃除機"]
     let monthlyTemplates = ["体重を1kg落とす", "本を3冊読む", "映画を3本見る", "貯金1万円", "新しい場所に行く"]
@@ -85,11 +155,31 @@ struct ReflectionView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                Picker("振り返り", selection: $reflectionType) { Text("日次").tag(0); if isSunday { Text("週次").tag(1) }; if isLastDayOfMonth { Text("月次").tag(2) }; if isDecember { Text("年次").tag(3) } }.pickerStyle(SegmentedPickerStyle()).padding()
-                .onChange(of: viewModel.selectedDate) { _, _ in if reflectionType == 1 && !isSunday { reflectionType = 0 }; if reflectionType == 2 && !isLastDayOfMonth { reflectionType = 0 }; if reflectionType == 3 && !isDecember { reflectionType = 0 } }
-                TabView(selection: $reflectionType) { dailyTab().tag(0); if isSunday { weeklyTab().tag(1) }; if isLastDayOfMonth { monthlyTab().tag(2) }; if isDecember { yearlyTab().tag(3) } }.tabViewStyle(.page(indexDisplayMode: .never))
-            }.navigationTitle(isToday ? "振り返り" : "\(viewModel.getDailyTitle(for: viewModel.selectedDate))").navigationBarTitleDisplayMode(.inline).onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
-            .toolbar { ToolbarItem(placement: .navigationBarTrailing) { if !isToday { Button(action: { withAnimation { viewModel.selectedDate = Date() } }) { HStack(spacing: 4) { Image(systemName: "arrow.uturn.backward.circle"); Text("今日に戻る") }.font(.caption).bold().foregroundColor(.blue).padding(.horizontal, 8).padding(.vertical, 4).background(Color.blue.opacity(0.1)).cornerRadius(12) } } } }
+                Picker("振り返り", selection: $reflectionType) {
+                    Text("日次").tag(0)
+                    if shouldShowWeeklyReflection { Text("週次").tag(1) }
+                    if shouldShowMonthlyReflection { Text("月次").tag(2) }
+                    if isDecember { Text("年次").tag(3) }
+                }.pickerStyle(SegmentedPickerStyle()).padding()
+                .onChange(of: viewModel.selectedDate) { _, _ in
+                    if reflectionType == 1 && !shouldShowWeeklyReflection { reflectionType = 0 }
+                    if reflectionType == 2 && !shouldShowMonthlyReflection { reflectionType = 0 }
+                    if reflectionType == 3 && !isDecember { reflectionType = 0 }
+                }
+                TabView(selection: $reflectionType) {
+                    dailyTab().tag(0)
+                    if shouldShowWeeklyReflection { weeklyTab().tag(1) }
+                    if shouldShowMonthlyReflection { monthlyTab().tag(2) }
+                    if isDecember { yearlyTab().tag(3) }
+                }.tabViewStyle(.page(indexDisplayMode: .never))
+            }
+            .navigationTitle(isToday ? "振り返り" : "\(viewModel.getDailyTitle(for: viewModel.selectedDate))")
+            .navigationBarTitleDisplayMode(.inline).onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if !isToday { Button(action: { withAnimation { viewModel.selectedDate = Date() } }) { HStack(spacing: 4) { Image(systemName: "arrow.uturn.backward.circle"); Text("今日に戻る") }.font(.caption).bold().foregroundColor(.blue).padding(.horizontal, 8).padding(.vertical, 4).background(Color.blue.opacity(0.1)).cornerRadius(12) } }
+                }
+            }
         }
     }
     
@@ -99,10 +189,10 @@ struct ReflectionView: View {
             VStack(spacing: 15) {
                 ReflectionAchievementCard(title: "\(viewModel.getDailyTitle(for: viewModel.selectedDate))の達成度", rate1: viewModel.getDailyCompletionRate(for: viewModel.selectedDate), rate2: nil, rate3: nil, color2: .clear, color3: .clear, comparisonText: nil, totalDoneCount: note.tasks.filter { $0.isCompleted }.count, tryDoneCount: note.tasks.filter { $0.isCompleted && $0.type == .tryCarryOver }.count)
                 VStack(alignment: .leading, spacing: 10) {
-                    TextEditorView(title: "Keep（できたこと）", text: Binding(get: { note.keep }, set: { viewModel.updateDailyNote($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：朝30分早く起きて読書できた！")
+                    TextEditorView(title: "Keep（できたこと）", text: Binding(get: { note.keep }, set: { viewModel.updateDailyNote($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：朝30分早く起きて読書できた")
                     TextEditorView(title: "Problem（課題）", text: Binding(get: { note.problem }, set: { viewModel.updateDailyNote($0, field: .problem, date: viewModel.selectedDate) }), placeholder: "例：ついスマホを見すぎて寝るのが遅くなった")
                     GoalListSection(title: "Try（アクション）", iconColor: .blue, goals: note.tryList, viewModel: viewModel, showCheckboxes: false, templates: [], placeholder: "例：23時以降はスマホを触らない", onUpdate: { viewModel.updateDailyTryList($0, date: viewModel.selectedDate) })
-                    TextEditorView(title: "振り返り（自由記述）", text: Binding(get: { note.reflection }, set: { viewModel.updateDailyNote($0, field: .reflection, date: viewModel.selectedDate) }), minHeight: 120, placeholder: "例：今日は全体的に集中できた。明日も頑張ろう！")
+                    TextEditorView(title: "振り返り（自由記述）", text: Binding(get: { note.reflection }, set: { viewModel.updateDailyNote($0, field: .reflection, date: viewModel.selectedDate) }), minHeight: 120, placeholder: "例：今日は全体的に集中できた。明日も頑張ろう")
                 }.padding(.horizontal)
             }.padding(.vertical).padding(.bottom, 250).contentShape(Rectangle()).onTapGesture { hideKeyboard() }
         }.scrollDismissesKeyboard(.interactively)
@@ -113,30 +203,46 @@ struct ReflectionView: View {
         ScrollView {
             VStack(spacing: 15) {
                 ReflectionAchievementCard(title: "今週の達成度", rate1: viewModel.getWeeklyDailyAvgRate(for: viewModel.selectedDate), rate2: viewModel.getWeeklyGoalRate(for: viewModel.selectedDate), rate3: nil, color2: .orange, color3: .clear, comparisonText: viewModel.getComparisonText(for: viewModel.selectedDate, isWeekly: true), totalDoneCount: viewModel.getCompletedTasksCount(for: viewModel.selectedDate, isWeekly: true), tryDoneCount: viewModel.getTryExecutionCount(for: viewModel.selectedDate, isWeekly: true))
+                ProgressListView(title: "日次目標の達成状況", items: viewModel.getDailyGoalsProgressStats(for: viewModel.selectedDate, isWeekly: true))
                 VStack(alignment: .leading, spacing: 10) {
                     GoalListSection(title: "先週のTryの実行チェック", iconColor: .gray, goals: viewModel.getLastWeeklyTryList(for: viewModel.selectedDate), viewModel: viewModel, showCheckboxes: true, templates: [], onUpdate: { viewModel.updateWeeklyTryList($0, date: viewModel.getPreviousWeekDate(from: viewModel.selectedDate)) })
                     GoalListSection(title: "今週の目標チェック", iconColor: .orange, goals: weekData.goals, viewModel: viewModel, showCheckboxes: true, templates: weeklyTemplates, onUpdate: { viewModel.updateWeeklyGoals($0, date: viewModel.selectedDate) })
-                    TextEditorView(title: "今週のKeep", text: Binding(get: { weekData.keep }, set: { viewModel.updateWeeklyText($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：週の目標だったジムに2回行けた！")
+                    TextEditorView(title: "今週のKeep", text: Binding(get: { weekData.keep }, set: { viewModel.updateWeeklyText($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：週の目標だったジムに2回行けた")
                     TextEditorView(title: "今週のProblem", text: Binding(get: { weekData.problem }, set: { viewModel.updateWeeklyText($0, field: .problem, date: viewModel.selectedDate) }), placeholder: "例：木曜日に疲れが溜まってタスクをサボってしまった")
                     GoalListSection(title: "来週のTry", iconColor: .blue, goals: weekData.tryList, viewModel: viewModel, showCheckboxes: false, templates: [], placeholder: "できなかったことに対するネクストアクション", onUpdate: { viewModel.updateWeeklyTryList($0, date: viewModel.selectedDate) })
-                    TextEditorView(title: "振り返り（自由記述）", text: Binding(get: { weekData.reflection }, set: { viewModel.updateWeeklyText($0, field: .reflection, date: viewModel.selectedDate) }), minHeight: 120, placeholder: "例：今週はよく頑張った！来週は睡眠時間を確保したい。")
+                    TextEditorView(title: "振り返り（自由記述）", text: Binding(get: { weekData.reflection }, set: { viewModel.updateWeeklyText($0, field: .reflection, date: viewModel.selectedDate) }), minHeight: 120, placeholder: "例：今週はよく頑張った。来週は睡眠時間を確保したい。")
                 }.padding(.horizontal)
             }.padding(.vertical).padding(.bottom, 250).contentShape(Rectangle()).onTapGesture { hideKeyboard() }
         }.scrollDismissesKeyboard(.interactively)
     }
     
     @ViewBuilder private func monthlyTab() -> some View {
-        let monthData = viewModel.currentMonthData; let nextMonthData = viewModel.nextMonthData; let nextMonthDate = Calendar.current.date(byAdding: .month, value: 1, to: viewModel.selectedDate) ?? viewModel.selectedDate
+        let monthData = viewModel.currentMonthData; let nextMonthDate = Calendar.current.date(byAdding: .month, value: 1, to: viewModel.selectedDate) ?? viewModel.selectedDate; let nextMonthData = viewModel.nextMonthData
+        let weekData = viewModel.currentWeekData
+        
         ScrollView {
             VStack(spacing: 15) {
                 ReflectionAchievementCard(title: "今月の達成度", rate1: viewModel.getMonthlyDailyAvgRate(for: viewModel.selectedDate), rate2: viewModel.getMonthlyWeeklyGoalAvgRate(for: viewModel.selectedDate), rate3: viewModel.getMonthlyGoalRate(for: viewModel.selectedDate), color2: .orange, color3: .blue, comparisonText: viewModel.getComparisonText(for: viewModel.selectedDate, isWeekly: false), totalDoneCount: viewModel.getCompletedTasksCount(for: viewModel.selectedDate, isWeekly: false), tryDoneCount: viewModel.getTryExecutionCount(for: viewModel.selectedDate, isWeekly: false))
+                ProgressListView(title: "日次目標の達成状況", items: viewModel.getDailyGoalsProgressStats(for: viewModel.selectedDate, isWeekly: false))
+                ProgressListView(title: "週次目標の達成状況", items: viewModel.getWeeklyGoalsProgressStats(for: viewModel.selectedDate))
+                
                 VStack(alignment: .leading, spacing: 10) {
                     GoalListSection(title: "先月のTryの実行チェック", iconColor: .gray, goals: viewModel.getLastMonthlyTryList(for: viewModel.selectedDate), viewModel: viewModel, showCheckboxes: true, templates: [], onUpdate: { viewModel.updateMonthlyTryList($0, date: viewModel.getPreviousMonthDate(from: viewModel.selectedDate)) })
+                    
+                    if shouldShowLastWeekInMonthly {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("🗓 最終週の振り返り（月またぎ前）").font(.caption).bold().foregroundColor(.orange).padding(.top, 4)
+                            GoalListSection(title: "最終週のTry実行チェック", iconColor: .gray, goals: viewModel.getLastWeeklyTryList(for: viewModel.selectedDate), viewModel: viewModel, showCheckboxes: true, templates: [], onUpdate: { viewModel.updateWeeklyTryList($0, date: viewModel.getPreviousWeekDate(from: viewModel.selectedDate)) })
+                            GoalListSection(title: "最終週の週次目標チェック", iconColor: .orange, goals: weekData.goals, viewModel: viewModel, showCheckboxes: true, templates: weeklyTemplates, onUpdate: { viewModel.updateWeeklyGoals($0, date: viewModel.selectedDate) })
+                            Divider().padding(.bottom, 4)
+                        }
+                    }
+                    
                     GoalListSection(title: "今月の目標チェック", iconColor: .blue, goals: monthData.monthlyGoals, viewModel: viewModel, showCheckboxes: true, templates: monthlyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .monthly, date: viewModel.selectedDate) })
-                    TextEditorView(title: "今月のKeep", text: Binding(get: { monthData.keep }, set: { viewModel.updateMonthlyText($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：1ヶ月間、毎日5分の片付けを継続できた！")
+                    TextEditorView(title: "今月のKeep", text: Binding(get: { monthData.keep }, set: { viewModel.updateMonthlyText($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：1ヶ月間、毎日5分の片付けを継続できた")
                     TextEditorView(title: "今月のProblem", text: Binding(get: { monthData.problem }, set: { viewModel.updateMonthlyText($0, field: .problem, date: viewModel.selectedDate) }), placeholder: "例：月の後半はモチベーションが下がってしまった")
                     GoalListSection(title: "来月のTry", iconColor: .blue, goals: viewModel.currentMonthData.tryList, viewModel: viewModel, showCheckboxes: false, templates: [], placeholder: "できなかったことに対するネクストアクション", onUpdate: { viewModel.updateMonthlyTryList($0, date: viewModel.selectedDate) })
-                    TextEditorView(title: "振り返り（自由記述）", text: Binding(get: { monthData.reflection }, set: { viewModel.updateMonthlyText($0, field: .reflection, date: viewModel.selectedDate) }), minHeight: 120, placeholder: "例：新しい習慣が身について良かった。来月も継続する！")
+                    TextEditorView(title: "振り返り（自由記述）", text: Binding(get: { monthData.reflection }, set: { viewModel.updateMonthlyText($0, field: .reflection, date: viewModel.selectedDate) }), minHeight: 120, placeholder: "例：新しい習慣が身について良かった。来月も継続する")
                     Divider().padding(.vertical, 8); Text("🚀 来月に向けて").font(.subheadline).bold().foregroundColor(.blue)
                     GoalListSection(title: "来月の月次目標", iconColor: .blue, goals: nextMonthData.monthlyGoals, viewModel: viewModel, showCheckboxes: false, templates: monthlyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .monthly, date: nextMonthDate) })
                     GoalListSection(title: "来月の週次目標", iconColor: .orange, goals: nextMonthData.weeklyGoals, viewModel: viewModel, showCheckboxes: false, templates: weeklyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .weekly, date: nextMonthDate) })
@@ -209,7 +315,6 @@ struct CalendarView: View {
     }
 }
 
-// MARK: - カレンダー画面の各ページ
 struct CalendarPage: View {
     @ObservedObject var viewModel: GoalViewModel; let offset: Int; let displayDate: Date; @Binding var selectedTab: Int
     @AppStorage("goalTutorialStep") var tutorialStep = 0
@@ -221,58 +326,35 @@ struct CalendarPage: View {
         
         ScrollView {
             VStack(spacing: 15) {
-                // 1. サマリーカード
                 HStack(spacing: 10) {
                     CompositeSummaryCard(title: "\(viewModel.getWeeklyTitle(for: referenceDate))の達成度", rate1: viewModel.getWeeklyDailyAvgRate(for: referenceDate), rate2: viewModel.getWeeklyGoalRate(for: referenceDate), rate3: nil, color2: .orange, color3: .clear, comparisonText: viewModel.getComparisonText(for: referenceDate, isWeekly: true))
                     CompositeSummaryCard(title: "\(viewModel.getMonthlyTitle(for: displayDate))の達成度", rate1: viewModel.getMonthlyDailyAvgRate(for: displayDate), rate2: viewModel.getMonthlyWeeklyGoalAvgRate(for: displayDate), rate3: viewModel.getMonthlyGoalRate(for: displayDate), color2: .orange, color3: .blue, comparisonText: viewModel.getComparisonText(for: displayDate, isWeekly: false))
                 }.padding(.horizontal)
                 
-                // 2. 前回のTry
                 VStack(alignment: .leading, spacing: 8) {
                     HStack { Image(systemName: "arrowshape.turn.up.right.fill").foregroundColor(.blue).font(.caption); Text("前回のTry").font(.caption).bold().foregroundColor(.secondary) }.padding(.horizontal)
-                    
                     let monthlyTrys = viewModel.getLastMonthlyTryList(for: displayDate).map { $0.title }
                     let weeklyTrys = viewModel.getLastWeeklyTryList(for: referenceDate).map { $0.title }
                     let yesterdayTrys = viewModel.getYesterdayTryList(for: referenceDate)
-                    
                     if monthlyTrys.isEmpty && weeklyTrys.isEmpty && yesterdayTrys.isEmpty {
-                        // 💡 解決策1：謎の空白を作らず、デザインされた「完了カード」で美しく空間を埋める
-                        HStack {
-                            Image(systemName: "checkmark.seal.fill").foregroundColor(.green.opacity(0.8))
-                            Text("引き継ぐアクションはありません。").font(.caption).bold().foregroundColor(.secondary)
-                            Spacer()
-                        }
-                        .padding(12)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
+                        HStack { Image(systemName: "checkmark.seal.fill").foregroundColor(.green.opacity(0.8)); Text("引き継ぐアクションはありません").font(.caption).bold().foregroundColor(.secondary); Spacer() }.padding(12).background(Color(.systemGray6)).cornerRadius(10).padding(.horizontal)
                     } else {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                BatonTag(title: "先月より", items: monthlyTrys, color: .blue)
-                                BatonTag(title: "先週より", items: weeklyTrys, color: .orange)
-                                BatonTag(title: "昨日より", items: yesterdayTrys, color: .green)
-                            }.padding(.horizontal)
-                        }
+                        ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 10) { BatonTag(title: "先月より", items: monthlyTrys, color: .blue); BatonTag(title: "先週より", items: weeklyTrys, color: .orange); BatonTag(title: "昨日より", items: yesterdayTrys, color: .green) }.padding(.horizontal) }
                     }
                 }.padding(.vertical, 5)
                 
-                // 3. 目標リスト
                 VStack(spacing: 10) {
-                    if tutorialStep == 1 { TutorialBubble(text: "💡 まずは「今月の目標」を立てましょう！\n大きめの目標や、1ヶ月で達成したいことを書きます。\n例：体重を1kg落とす", step: $tutorialStep) }
+                    if tutorialStep == 1 { TutorialBubble(text: "まずは「今月の目標」を立てましょう\n大きめの目標や、1ヶ月で達成したいことを書きます。\n例：体重を1kg落とす", step: $tutorialStep) }
                     GoalListSection(title: "\(viewModel.getMonthlyTitle(for: displayDate))の月次目標", iconColor: .blue, goals: monthData.monthlyGoals, viewModel: viewModel, showCheckboxes: false, templates: monthlyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .monthly, date: displayDate) }, onCopy: { copyPrev(field: .monthly, date: displayDate) })
-                    if tutorialStep == 2 { TutorialBubble(text: "💡 次に、月次目標を達成するための「今週の目標」に落とし込みます。\n例：週に2回ジムに行く", step: $tutorialStep) }
+                    if tutorialStep == 2 { TutorialBubble(text: "次に、月次目標を達成するための「今週の目標」に落とし込みます。\n例：週に2回ジムに行く", step: $tutorialStep) }
                     GoalListSection(title: "\(viewModel.getMonthlyTitle(for: displayDate))の週次目標", iconColor: .orange, goals: monthData.weeklyGoals, viewModel: viewModel, showCheckboxes: false, templates: weeklyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .weekly, date: displayDate) }, onCopy: { copyPrev(field: .weekly, date: displayDate) })
-                    if tutorialStep == 3 { TutorialBubble(text: "💡 最後に、毎日やるべき「日次目標（習慣）」を決めます。\nこれが毎日ホーム画面にタスクとして表示されます！\n例：毎日スクワット15回", step: $tutorialStep, isLast: true) }
+                    if tutorialStep == 3 { TutorialBubble(text: "最後に、毎日やるべき「日次目標（習慣）」を決めます。\nこれが毎日ホーム画面にタスクとして表示されます\n例：毎日スクワット15回", step: $tutorialStep, isLast: true) }
                     GoalListSection(title: "\(viewModel.getMonthlyTitle(for: displayDate))の日次目標", iconColor: .green, goals: monthData.dailyGoals, viewModel: viewModel, showCheckboxes: false, templates: dailyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .daily, date: displayDate) }, onCopy: { copyPrev(field: .daily, date: displayDate) })
                 }.padding(.horizontal)
                 
-                // 4. カレンダー本体
                 CalendarGridView(viewModel: viewModel, displayDate: displayDate, selectedDate: $viewModel.selectedDate, selectedTab: $selectedTab)
                 
-            }
-            .padding(.top, 10).padding(.bottom, 40).contentShape(Rectangle()).onTapGesture { hideKeyboard() }
-            // 💡 解決策2：カレンダーが移動する時に「ガタッ」ではなく「スゥーッ」と滑らかに動かす
+            }.padding(.top, 10).padding(.bottom, 40).contentShape(Rectangle()).onTapGesture { hideKeyboard() }
             .animation(.easeInOut(duration: 0.25), value: viewModel.selectedDate)
         }.scrollDismissesKeyboard(.interactively)
     }
@@ -290,10 +372,10 @@ struct FutureVisionView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                Text("目標を達成した先に、どうなっていたいですか？\n大きな目標に対して、具体的なステップを追加して夢を可視化しましょう。").font(.caption).foregroundColor(.secondary).padding()
-                HStack { TextField("例：海外で働く！", text: $newVisionTitle).textFieldStyle(RoundedBorderTextFieldStyle()).focused($isInputFocused).onSubmit { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }; Button(action: { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }) { Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.pink) }.buttonStyle(PlainButtonStyle()) }.padding(.horizontal).padding(.bottom, 10)
+                Text("目標を達成した先に、どうなっていたいですか？\n具体的なステップを追加して夢を可視化しましょう。").font(.caption).foregroundColor(.secondary).padding()
+                HStack { TextField("例：海外で働く", text: $newVisionTitle).textFieldStyle(RoundedBorderTextFieldStyle()).focused($isInputFocused).onSubmit { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }; Button(action: { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }) { Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.pink) }.buttonStyle(PlainButtonStyle()) }.padding(.horizontal).padding(.bottom, 10)
                 List { ForEach(viewModel.futureVisions) { vision in FutureVisionRow(vision: vision, viewModel: viewModel) } }.listStyle(PlainListStyle()).scrollDismissesKeyboard(.interactively)
-            }.navigationTitle("✨ 未来の自分").contentShape(Rectangle()).onTapGesture { hideKeyboard() }
+            }.navigationTitle("未来の自分").contentShape(Rectangle()).onTapGesture { hideKeyboard() }
         }
     }
 }
@@ -330,7 +412,70 @@ struct FutureVisionRow: View {
     private func addSubTask() { guard !newSubTaskText.isEmpty else { return }; viewModel.addSubTask(to: vision.id, title: newSubTaskText); newSubTaskText = "" }
 }
 
-// MARK: - カレンダー用のタグUI
+// MARK: - 設定画面
+struct SettingsView: View {
+    @ObservedObject var viewModel: GoalViewModel
+    @State private var isTutorial = false
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("通知設定") {
+                    Toggle("目標通知", isOn: Binding(get: { viewModel.appSettings.goalNotificationEnabled }, set: { viewModel.appSettings.goalNotificationEnabled = $0; viewModel.saveSettings() }))
+                    if viewModel.appSettings.goalNotificationEnabled {
+                        DatePicker("時間", selection: Binding(get: { viewModel.appSettings.goalNotificationTime }, set: { viewModel.appSettings.goalNotificationTime = $0; viewModel.saveSettings() }), displayedComponents: .hourAndMinute)
+                    }
+                    Toggle("振り返り通知", isOn: Binding(get: { viewModel.appSettings.reflectionNotificationEnabled }, set: { viewModel.appSettings.reflectionNotificationEnabled = $0; viewModel.saveSettings() }))
+                    if viewModel.appSettings.reflectionNotificationEnabled {
+                        DatePicker("時間", selection: Binding(get: { viewModel.appSettings.reflectionNotificationTime }, set: { viewModel.appSettings.reflectionNotificationTime = $0; viewModel.saveSettings() }), displayedComponents: .hourAndMinute)
+                    }
+                }
+                
+                Section("振り返りの設定") {
+                    Toggle("月の初週をスキップ", isOn: Binding(get: { viewModel.appSettings.skipShortFirstWeek }, set: { viewModel.appSettings.skipShortFirstWeek = $0; viewModel.saveSettings() }))
+                    if viewModel.appSettings.skipShortFirstWeek {
+                        Stepper(value: Binding(get: { viewModel.appSettings.shortWeekThreshold }, set: { viewModel.appSettings.shortWeekThreshold = $0; viewModel.saveSettings() }), in: 1...6) {
+                            HStack { Text("初週のスキップ日数"); Spacer(); Text("\(viewModel.appSettings.shortWeekThreshold)日以下").foregroundColor(.secondary).bold() }
+                        }
+                    }
+                    
+                    Toggle("月の最終週をスキップ", isOn: Binding(get: { viewModel.appSettings.skipShortLastWeek }, set: { viewModel.appSettings.skipShortLastWeek = $0; viewModel.saveSettings() }))
+                    if viewModel.appSettings.skipShortLastWeek {
+                        Stepper(value: Binding(get: { viewModel.appSettings.shortLastWeekThreshold }, set: { viewModel.appSettings.shortLastWeekThreshold = $0; viewModel.saveSettings() }), in: 1...6) {
+                            HStack { Text("最終週のスキップ日数"); Spacer(); Text("\(viewModel.appSettings.shortLastWeekThreshold)日以下").foregroundColor(.secondary).bold() }
+                        }
+                    }
+                }
+                
+                Section("カスタマイズ") {
+                    NavigationLink(destination: CategorySettingsView(viewModel: viewModel)) {
+                        HStack { Image(systemName: "paintpalette.fill").foregroundColor(.purple).frame(width: 24); Text("カテゴリーの追加・編集") }
+                    }
+                }
+                
+                Section("サポート") {
+                    Button(action: { isTutorial = true }) {
+                        HStack { Image(systemName: "book.fill").foregroundColor(.blue).frame(width: 24); Text("使い方ガイド").foregroundColor(.primary); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundColor(.secondary) }.contentShape(Rectangle())
+                    }.buttonStyle(.plain)
+                }
+            }
+            .navigationTitle("設定").fullScreenCover(isPresented: $isTutorial) { TutorialView(viewModel: viewModel, isShowing: $isTutorial) }
+        }
+    }
+}
+
+struct CategorySettingsView: View {
+    @ObservedObject var viewModel: GoalViewModel; @State private var newName = ""; @State private var selectedColor = "blue"
+    let availableColors = [("青", "blue", Color.blue), ("水色", "teal", Color.teal), ("緑", "green", Color.green), ("黄", "yellow", Color.yellow), ("橙", "orange", Color.orange), ("赤", "red", Color.red), ("紫", "purple", Color.purple), ("藍色", "indigo", Color.indigo), ("茶色", "brown", Color.brown), ("グレー", "gray", Color.gray)]
+    var body: some View {
+        Form {
+            Section(header: Text("新しいカテゴリーを作る")) { TextField("カテゴリー名", text: $newName); ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 12) { ForEach(availableColors, id: \.1) { colorInfo in Circle().fill(colorInfo.2).frame(width: 30, height: 30).overlay(Circle().stroke(Color.primary.opacity(0.8), lineWidth: selectedColor == colorInfo.1 ? 3 : 0).padding(-4)).onTapGesture { selectedColor = colorInfo.1 } } }.padding(8) }.padding(.vertical, 4); Button("追加する") { if !newName.isEmpty { let newCat = CategoryItem(name: newName, colorName: selectedColor); viewModel.appSettings.categories.append(newCat); viewModel.saveSettings(); newName = "" } }.disabled(newName.isEmpty) }
+            Section(header: Text("現在のカテゴリー")) { List { ForEach(viewModel.appSettings.categories) { cat in HStack { Circle().fill(cat.color).frame(width: 15, height: 15); Text(cat.name) } }.onDelete { offsets in viewModel.appSettings.categories.remove(atOffsets: offsets); viewModel.saveSettings() } } }
+        }.navigationTitle("カテゴリー編集").scrollDismissesKeyboard(.interactively)
+    }
+}
+
+// MARK: - 共用部品（バッジ・GoalListなど）
 struct BatonTag: View {
     let title: String; let items: [String]; let color: Color
     var body: some View {
@@ -338,13 +483,11 @@ struct BatonTag: View {
     }
 }
 
-// MARK: - その他の共通部品
 struct TutorialBubble: View {
     let text: String; @Binding var step: Int; var isLast: Bool = false
-    var body: some View { VStack(alignment: .leading, spacing: 10) { Text(text).font(.subheadline).bold().foregroundColor(.white).lineSpacing(4); HStack { Spacer(); Button(action: { withAnimation { if isLast { step = -1 } else { step += 1 } } }) { Text(isLast ? "完了！" : "次へ").font(.caption).bold().padding(.horizontal, 16).padding(.vertical, 8).background(Color.white).foregroundColor(.blue).cornerRadius(20) } } }.padding().background(Color.blue).cornerRadius(12).padding(.bottom, 10) }
+    var body: some View { VStack(alignment: .leading, spacing: 10) { Text(text).font(.subheadline).bold().foregroundColor(.white).lineSpacing(4); HStack { Spacer(); Button(action: { withAnimation { if isLast { step = -1 } else { step += 1 } } }) { Text(isLast ? "完了" : "次へ").font(.caption).bold().padding(.horizontal, 16).padding(.vertical, 8).background(Color.white).foregroundColor(.blue).cornerRadius(20) } } }.padding().background(Color.blue).cornerRadius(12).padding(.bottom, 10) }
 }
 
-// 💡 プレースホルダーを受け取れるGoalListSection
 struct GoalListSection: View {
     let title: String; let iconColor: Color; var goals: [Goal]; @ObservedObject var viewModel: GoalViewModel
     var showCheckboxes: Bool; var templates: [String]
@@ -352,6 +495,7 @@ struct GoalListSection: View {
     var onUpdate: ([Goal]) -> Void; var onCopy: (() -> Void)? = nil
     @State private var tempTitle = ""; @State private var selectedCategoryId = "action"
     @State private var isAdding = false; @State private var editingGoal: Goal? = nil; @State private var isExpanded: Bool = true
+    
     var body: some View {
         let categories = viewModel.appSettings.categories
         VStack(alignment: .leading, spacing: 8) {
@@ -399,29 +543,5 @@ struct EditItemSheet: View {
                 Section(header: Text("カテゴリー")) { Picker("カテゴリー", selection: $categoryId) { ForEach(viewModel.appSettings.categories) { cat in HStack { Circle().fill(cat.color).frame(width: 10, height: 10); Text(cat.name) }.tag(cat.id) } }.pickerStyle(MenuPickerStyle()) }
             }.navigationTitle("編集").navigationBarTitleDisplayMode(.inline).toolbar { ToolbarItem(placement: .navigationBarLeading) { Button("キャンセル") { presentationMode.wrappedValue.dismiss() } }; ToolbarItem(placement: .navigationBarTrailing) { Button("保存") { onSave(title, categoryId); presentationMode.wrappedValue.dismiss() }.disabled(title.isEmpty) } }.scrollDismissesKeyboard(.interactively)
         }
-    }
-}
-
-struct SettingsView: View {
-    @ObservedObject var viewModel: GoalViewModel; @State private var isTutorial = false
-    var body: some View {
-        NavigationView {
-            Form {
-                Section("通知設定") { Toggle("目標通知", isOn: Binding(get: { viewModel.appSettings.goalNotificationEnabled }, set: { viewModel.appSettings.goalNotificationEnabled = $0; viewModel.saveSettings() })); if viewModel.appSettings.goalNotificationEnabled { DatePicker("時間", selection: Binding(get: { viewModel.appSettings.goalNotificationTime }, set: { viewModel.appSettings.goalNotificationTime = $0; viewModel.saveSettings() }), displayedComponents: .hourAndMinute) }; Toggle("振り返り通知", isOn: Binding(get: { viewModel.appSettings.reflectionNotificationEnabled }, set: { viewModel.appSettings.reflectionNotificationEnabled = $0; viewModel.saveSettings() })); if viewModel.appSettings.reflectionNotificationEnabled { DatePicker("時間", selection: Binding(get: { viewModel.appSettings.reflectionNotificationTime }, set: { viewModel.appSettings.reflectionNotificationTime = $0; viewModel.saveSettings() }), displayedComponents: .hourAndMinute) } }
-                Section("カスタマイズ") { NavigationLink(destination: CategorySettingsView(viewModel: viewModel)) { HStack { Image(systemName: "paintpalette.fill").foregroundColor(.purple).frame(width: 24); Text("カテゴリーの追加・編集") } } }
-                Section("サポート") { Button(action: { isTutorial = true }) { HStack { Image(systemName: "book.fill").foregroundColor(.blue).frame(width: 24); Text("使い方ガイド（見直す）").foregroundColor(.primary); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundColor(.secondary) }.contentShape(Rectangle()) }.buttonStyle(.plain) }
-            }.navigationTitle("設定").fullScreenCover(isPresented: $isTutorial) { TutorialView(viewModel: viewModel, isShowing: $isTutorial) }
-        }
-    }
-}
-
-struct CategorySettingsView: View {
-    @ObservedObject var viewModel: GoalViewModel; @State private var newName = ""; @State private var selectedColor = "blue"
-    let availableColors = [("青", "blue", Color.blue), ("水色", "teal", Color.teal), ("緑", "green", Color.green), ("黄", "yellow", Color.yellow), ("橙", "orange", Color.orange), ("赤", "red", Color.red), ("紫", "purple", Color.purple), ("藍色", "indigo", Color.indigo), ("茶色", "brown", Color.brown), ("グレー", "gray", Color.gray)]
-    var body: some View {
-        Form {
-            Section(header: Text("新しいカテゴリーを作る")) { TextField("カテゴリー名", text: $newName); ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 12) { ForEach(availableColors, id: \.1) { colorInfo in Circle().fill(colorInfo.2).frame(width: 30, height: 30).overlay(Circle().stroke(Color.primary.opacity(0.8), lineWidth: selectedColor == colorInfo.1 ? 3 : 0).padding(-4)).onTapGesture { selectedColor = colorInfo.1 } } }.padding(8) }.padding(.vertical, 4); Button("追加する") { if !newName.isEmpty { let newCat = CategoryItem(name: newName, colorName: selectedColor); viewModel.appSettings.categories.append(newCat); viewModel.saveSettings(); newName = "" } }.disabled(newName.isEmpty) }
-            Section(header: Text("現在のカテゴリー")) { List { ForEach(viewModel.appSettings.categories) { cat in HStack { Circle().fill(cat.color).frame(width: 15, height: 15); Text(cat.name) } }.onDelete { offsets in viewModel.appSettings.categories.remove(atOffsets: offsets); viewModel.saveSettings() } } }
-        }.navigationTitle("カテゴリー編集").scrollDismissesKeyboard(.interactively)
     }
 }
