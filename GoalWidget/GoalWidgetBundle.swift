@@ -53,7 +53,7 @@ struct GoalWidgetEntryView : View {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(uncompleted.prefix(2)) { task in
                             Text("• \(task.title)")
-                                .font(.system(size: 10))
+                                .font(.system(size: 12))
                                 .lineLimit(1)
                         }
                     }
@@ -65,7 +65,7 @@ struct GoalWidgetEntryView : View {
                             let nextTasks = Array(uncompleted.dropFirst(2))
                             ForEach(nextTasks.prefix(2)) { task in
                                 Text("• \(task.title)")
-                                    .font(.system(size: 10))
+                                    .font(.system(size: 12))
                                     .lineLimit(1)
                             }
                         }

@@ -277,7 +277,7 @@ struct ReflectionView: View {
     }
 }
 
-// MARK: - カレンダー画面
+// MARK: - 🟢 修正：カレンダーの移動制限を追加
 struct CalendarView: View {
     @ObservedObject var viewModel: GoalViewModel; @Binding var selectedTab: Int
     @State private var monthOffset: Int = 0; @State private var showDatePicker = false
@@ -287,9 +287,27 @@ struct CalendarView: View {
     private func displayDate(for offset: Int) -> Date { let c = Calendar.current; return c.date(byAdding: .month, value: offset, to: c.date(from: c.dateComponents([.year, .month], from: Date())) ?? Date()) ?? Date() }
     private var isCurrentMonth: Bool { monthOffset == 0 }
 
+    // 🌟 アプリ開始月からの最小オフセットを計算
+    private var minOffset: Int {
+        guard let start = viewModel.appSettings.appStartDate else { return 0 }
+        let cal = Calendar.current
+        let startMonth = cal.date(from: cal.dateComponents([.year, .month], from: start))!
+        let currentMonth = cal.date(from: cal.dateComponents([.year, .month], from: Date()))!
+        let diff = cal.dateComponents([.month], from: startMonth, to: currentMonth).month ?? 0
+        return -diff
+    }
+    
+    private var startYear: Int { Calendar.current.component(.year, from: viewModel.appSettings.appStartDate ?? Date()) }
+    private var startMonth: Int { Calendar.current.component(.month, from: viewModel.appSettings.appStartDate ?? Date()) }
+
     var body: some View {
         NavigationView {
-            TabView(selection: $monthOffset) { ForEach(-60..<61, id: \.self) { offset in CalendarPage(viewModel: viewModel, offset: offset, displayDate: displayDate(for: offset), selectedTab: $selectedTab).tag(offset) } }
+            // 🌟 過去への移動を minOffset までに制限
+            TabView(selection: $monthOffset) {
+                ForEach(minOffset..<61, id: \.self) { offset in
+                    CalendarPage(viewModel: viewModel, offset: offset, displayDate: displayDate(for: offset), selectedTab: $selectedTab).tag(offset)
+                }
+            }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .navigationTitle(viewModel.getMonthlyTitle(for: displayDate(for: monthOffset)))
             .navigationBarTitleDisplayMode(.inline)
@@ -297,17 +315,46 @@ struct CalendarView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 12) {
                         if !isCurrentMonth { Button(action: { withAnimation { monthOffset = 0; viewModel.selectedDate = Date() } }) { HStack(spacing: 4) { Image(systemName: "arrow.uturn.backward.circle"); Text("今日").font(.caption.bold()) }.foregroundColor(.blue).padding(.horizontal, 8).padding(.vertical, 4).background(Color.blue.opacity(0.1)).cornerRadius(12) } }
-                        Button(action: { let currentDisp = displayDate(for: monthOffset); jumpYear = Calendar.current.component(.year, from: currentDisp); jumpMonth = Calendar.current.component(.month, from: currentDisp); showDatePicker = true }) { Image(systemName: "calendar.badge.clock").font(.body.bold()) }
+                        Button(action: {
+                            let currentDisp = displayDate(for: monthOffset)
+                            jumpYear = Calendar.current.component(.year, from: currentDisp)
+                            jumpMonth = Calendar.current.component(.month, from: currentDisp)
+                            showDatePicker = true
+                        }) { Image(systemName: "calendar.badge.clock").font(.body.bold()) }
                     }
                 }
             }
             .sheet(isPresented: $showDatePicker) {
                 NavigationView {
-                    VStack { HStack { Picker("年", selection: $jumpYear) { ForEach(2020...2050, id: \.self) { y in Text("\(y)年").tag(y) } }.pickerStyle(WheelPickerStyle()); Picker("月", selection: $jumpMonth) { ForEach(1...12, id: \.self) { m in Text("\(m)月").tag(m) } }.pickerStyle(WheelPickerStyle()) }.padding(); Spacer() }
+                    VStack {
+                        HStack {
+                            // 🌟 年の選択を開始年〜2050年に制限
+                            Picker("年", selection: $jumpYear) {
+                                ForEach(startYear...2050, id: \.self) { y in Text("\(y)年").tag(y) }
+                            }.pickerStyle(WheelPickerStyle())
+                            
+                            // 🌟 月の選択を開始月より前にならないように制限
+                            Picker("月", selection: $jumpMonth) {
+                                ForEach(1...12, id: \.self) { m in
+                                    if jumpYear > startYear || m >= startMonth {
+                                        Text("\(m)月").tag(m)
+                                    }
+                                }
+                            }.pickerStyle(WheelPickerStyle())
+                        }.padding(); Spacer()
+                    }
                     .navigationTitle("指定した月へ移動").navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) { Button("キャンセル") { showDatePicker = false } }
-                        ToolbarItem(placement: .navigationBarTrailing) { Button("移動") { let cal = Calendar.current; var comps = DateComponents(); comps.year = jumpYear; comps.month = jumpMonth; comps.day = 1; if let target = cal.date(from: comps), let currentMonthStart = cal.date(from: cal.dateComponents([.year, .month], from: Date())) { monthOffset = cal.dateComponents([.month], from: currentMonthStart, to: target).month ?? 0 }; showDatePicker = false } }
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("移動") {
+                                let cal = Calendar.current
+                                var comps = DateComponents(); comps.year = jumpYear; comps.month = jumpMonth; comps.day = 1
+                                if let target = cal.date(from: comps), let currentMonthStart = cal.date(from: cal.dateComponents([.year, .month], from: Date())) {
+                                    monthOffset = cal.dateComponents([.month], from: currentMonthStart, to: target).month ?? 0
+                                }; showDatePicker = false
+                            }
+                        }
                     }
                 }
             }
