@@ -44,7 +44,7 @@ struct GoalWidgetEntryView : View {
         case .accessoryRectangular:
             // 🟢 ロック画面（長方形）：2列にして横幅をフル活用！
             VStack(alignment: .leading, spacing: 2) {
-                Text(uncompleted.isEmpty ? "🎉 今日のタスク完了！" : "未完了: \(uncompleted.count)件")
+                Text(uncompleted.isEmpty ? "今日のタスク完了！" : "未完了: \(uncompleted.count)件")
                     .font(.system(size: 12, weight: .bold))
                     .widgetAccentable()
                 
@@ -78,14 +78,14 @@ struct GoalWidgetEntryView : View {
         case .accessoryInline:
             // 🟢 ロック画面（一行）
             let count = uncompleted.count
-            Text(count == 0 ? "🎯 タスク完了" : "📝 残り: \(count)件")
+            Text(count == 0 ? "タスク完了" : "残り: \(count)件")
             
         case .systemMedium:
             // 🟢 ホームウィジェット（中）：2列でタスクを最大8件表示
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     // 🌟 変更：タイトルを未完了件数に変更！
-                    Text(uncompleted.isEmpty ? "🎉 すべて完了！" : "未完了: \(uncompleted.count)件")
+                    Text(uncompleted.isEmpty ? "すべて完了！" : "未完了: \(uncompleted.count)件")
                         .font(.caption).bold().foregroundColor(.secondary)
                     Spacer()
                     Text("\(entry.tasks.filter{$0.isCompleted}.count)/\(entry.tasks.count)").font(.caption2).foregroundColor(.secondary)
@@ -130,7 +130,7 @@ struct GoalWidgetEntryView : View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     // 🌟 変更：タイトルを未完了件数に変更！
-                    Text(uncompleted.isEmpty ? "🎉 すべて完了！" : "未完了: \(uncompleted.count)件")
+                    Text(uncompleted.isEmpty ? "すべて完了！" : "未完了: \(uncompleted.count)件")
                         .font(.caption).bold().foregroundColor(.secondary)
                 }
                 if entry.tasks.isEmpty {
