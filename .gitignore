@@ -1,3 +1,4 @@
 # 秘密のファイルを隠す
 GoalTracker/Secrets.swift
-.DS_Store
+.DS_StoreGoalTracker/Config.swift
+Config.swift

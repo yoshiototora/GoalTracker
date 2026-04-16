@@ -37,20 +37,28 @@ struct ContentView: View {
                         .tabItem { Image(systemName: "gearshape"); Text("設定") }.tag(4)
                 }
                 
-                // キーボードが開いていない時だけ広告を表示
-                if !isKeyboardVisible {
-                    AdBannerView()
-                        .frame(width: 320, height: 50)
-                        .background(Color(UIColor.systemBackground))
-                        .transition(.opacity)
-                }
-            }
-        }
-        .onAppear {
-            if !UserDefaults.standard.bool(forKey: "hasCompletedMainTutorial") {
-                showTutorial = true
-            }
-        }
+                // ContentView.swift
+
+                // ...中略...
+
+                                // 🟢 広告を再表示
+                                if !isKeyboardVisible {
+                                    AdBannerView()
+                                        .frame(width: 320, height: 50)
+                                        .background(Color(UIColor.systemBackground))
+                                        .transition(.opacity)
+                                }
+                            }
+                        }
+                        .onAppear {
+                            // 🔴 以下の1行を削除（またはコメントアウト）
+                            // viewModel.setupDummyDataForScreenshots()
+                            
+                            if !UserDefaults.standard.bool(forKey: "hasCompletedMainTutorial") {
+                                showTutorial = true
+                            }
+                        }
+                // ...後略...
         .fullScreenCover(isPresented: $showTutorial) {
             TutorialView(viewModel: viewModel, isShowing: $showTutorial)
         }

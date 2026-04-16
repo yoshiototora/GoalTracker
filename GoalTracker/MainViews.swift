@@ -25,19 +25,31 @@ struct HomeView: View {
                     List {
                         Section {
                             ForEach(currentTasks) { task in
-                                let cat = viewModel.getCategory(id: task.categoryId)
-                                HStack(spacing: 12) {
-                                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                                        .foregroundColor(task.isCompleted ? .green : cat.color)
-                                        .font(.system(size: 22))
-                                    
-                                    if task.type == .dailyGoal {
-                                        Text(task.title).bold().strikethrough(task.isCompleted).foregroundColor(task.isCompleted ? .gray : .primary)
-                                    } else {
-                                        Text(task.title).strikethrough(task.isCompleted).foregroundColor(task.isCompleted ? .gray : .primary)
-                                    }
-                                    Spacer()
-                                }.contentShape(Rectangle())
+                                                            let cat = viewModel.getCategory(id: task.categoryId)
+                                                            HStack(spacing: 12) {
+                                                                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                                                    .foregroundColor(task.isCompleted ? .green : cat.color)
+                                                                    .font(.system(size: 22))
+                                                                
+                                                                // 🌟 ここを追加！：Tryタスクなら専用のバッジ（ラベル）をつける
+                                                                if task.type == .tryCarryOver {
+                                                                    Text("Try")
+                                                                        .font(.system(size: 10, weight: .bold))
+                                                                        .foregroundColor(.white)
+                                                                        .padding(.horizontal, 6)
+                                                                        .padding(.vertical, 2)
+                                                                        .background(task.isCompleted ? Color.gray.opacity(0.8) : Color.orange)
+                                                                        .cornerRadius(6)
+                                                                }
+                                                                
+                                                                if task.type == .dailyGoal {
+                                                                    Text(task.title).bold().strikethrough(task.isCompleted).foregroundColor(task.isCompleted ? .gray : .primary)
+                                                                } else {
+                                                                    Text(task.title).strikethrough(task.isCompleted).foregroundColor(task.isCompleted ? .gray : .primary)
+                                                                }
+                                                                Spacer()
+                                                            }
+                                                            .contentShape(Rectangle())
                                 .onTapGesture { if task.isYearlyReflection && Calendar.current.component(.month, from: viewModel.selectedDate) != 12 { return }; let impact = UIImpactFeedbackGenerator(style: .medium); impact.impactOccurred(); viewModel.toggleTask(id: task.id, for: viewModel.selectedDate) }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     if task.type == .normal { Button(role: .destructive) { if let idx = currentTasks.firstIndex(where: { $0.id == task.id }) { viewModel.removeTasks(at: IndexSet(integer: idx), for: viewModel.selectedDate) } } label: { Image(systemName: "trash") }; Button { editingTask = task } label: { Image(systemName: "pencil") }.tint(.orange) }

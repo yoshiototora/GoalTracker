@@ -10,15 +10,16 @@ struct AdBannerView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
         let viewController = UIViewController()
         
-        // 🔴 GADを取り除いた新しい書き方
+// AdBannerView.swift の該当部分
+        
         let bannerView = BannerView(adSize: AdSizeBanner)
         
-        bannerView.adUnitID = "ca-app-pub-3940256099942544/2934735716" // テスト用ID
+        // 🟢 直接IDを書かず、Configから読み込む
+        bannerView.adUnitID = Config.adBannerUnitID
         bannerView.rootViewController = viewController
         viewController.view.addSubview(bannerView)
         viewController.view.frame = CGRect(origin: .zero, size: AdSizeBanner.size)
         
-        // 🔴 GADを取り除いた新しい書き方
         let request = Request()
         bannerView.load(request)
         
