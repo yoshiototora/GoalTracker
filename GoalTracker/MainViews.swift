@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 
+// MARK: - ホーム画面
 struct HomeView: View {
     @ObservedObject var viewModel: GoalViewModel
     @Binding var selectedTab: Int
@@ -165,8 +166,12 @@ struct ReflectionView: View {
     @State private var reflectionType = 0
     @State private var showYearlyAnimation = false
     
+    // ヒント管理
     @AppStorage("showReflectionHint") private var showReflectionHint = true
     @AppStorage("hasCompletedMainTutorial") private var hasCompletedTutorial = false
+    @AppStorage("showWeeklyHint") private var showWeeklyHint = true
+    @AppStorage("showMonthlyHint") private var showMonthlyHint = true
+    @AppStorage("showYearlyHint") private var showYearlyHint = true
     
     private var isToday: Bool { Calendar.current.isDateInToday(viewModel.selectedDate) }
     private var isDecember: Bool { Calendar.current.component(.month, from: viewModel.selectedDate) == 12 }
@@ -230,79 +235,87 @@ struct ReflectionView: View {
     let monthlyTemplates = ["体重を1kg落とす", "本を3冊読む", "映画を3本見る", "貯金1万円", "新しい場所に行く"]
     
     var body: some View {
-            NavigationView {
-                VStack(spacing: 0) {
-                    Picker("振り返り", selection: $reflectionType) {
-                        Text("日次").tag(0)
-                        if shouldShowWeeklyReflection { Text("週次").tag(1) }
-                        if shouldShowMonthlyReflection { Text("月次").tag(2) }
-                        if isDecember { Text("年次").tag(3) }
-                    }
-                    .pickerStyle(SegmentedPickerStyle()).padding()
-                    .onChange(of: viewModel.selectedDate) { _, _ in
-                        if reflectionType == 1 && !shouldShowWeeklyReflection { reflectionType = 0 }
-                        if reflectionType == 2 && !shouldShowMonthlyReflection { reflectionType = 0 }
-                        if reflectionType == 3 && !isDecember { reflectionType = 0 }
-                    }
-                    
-                    TabView(selection: $reflectionType) {
-                        dailyTab().tag(0)
-                        if shouldShowWeeklyReflection { weeklyTab().tag(1) }
-                        if shouldShowMonthlyReflection { monthlyTab().tag(2) }
-                        if isDecember { yearlyTab().tag(3) }
-                    }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
+        NavigationView {
+            VStack(spacing: 0) {
+                Picker("振り返り", selection: $reflectionType) {
+                    Text("日次").tag(0)
+                    if shouldShowWeeklyReflection { Text("週次").tag(1) }
+                    if shouldShowMonthlyReflection { Text("月次").tag(2) }
+                    if isDecember { Text("年次").tag(3) }
                 }
-                .navigationTitle(isToday ? "振り返り" : "\(viewModel.getDailyTitle(for: viewModel.selectedDate))")
-                .navigationBarTitleDisplayMode(.inline)
-                .onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        if !isToday {
-                            Button(action: { withAnimation { viewModel.selectedDate = Date() } }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "arrow.uturn.backward.circle")
-                                    Text("今日に戻る")
-                                }
-                                .font(.caption).bold().foregroundColor(.blue)
-                                .padding(.horizontal, 8).padding(.vertical, 4)
-                                .background(Color.blue.opacity(0.1)).cornerRadius(12)
+                .pickerStyle(SegmentedPickerStyle()).padding()
+                .onChange(of: viewModel.selectedDate) { _, _ in
+                    if reflectionType == 1 && !shouldShowWeeklyReflection { reflectionType = 0 }
+                    if reflectionType == 2 && !shouldShowMonthlyReflection { reflectionType = 0 }
+                    if reflectionType == 3 && !isDecember { reflectionType = 0 }
+                }
+                
+                TabView(selection: $reflectionType) {
+                    dailyTab().tag(0)
+                    if shouldShowWeeklyReflection { weeklyTab().tag(1) }
+                    if shouldShowMonthlyReflection { monthlyTab().tag(2) }
+                    if isDecember { yearlyTab().tag(3) }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+            }
+            .navigationTitle(isToday ? "振り返り" : "\(viewModel.getDailyTitle(for: viewModel.selectedDate))")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if !isToday {
+                        Button(action: { withAnimation { viewModel.selectedDate = Date() } }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.uturn.backward.circle")
+                                Text("今日に戻る")
                             }
+                            .font(.caption).bold().foregroundColor(.blue)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.1)).cornerRadius(12)
                         }
                     }
                 }
             }
         }
-        
-        @ViewBuilder private func dailyTab() -> some View {
-            let note = viewModel.currentDailyNote
-            ScrollView {
-                VStack(spacing: 15) {
-                    if hasCompletedTutorial {
-                        InlineHintCard(
-                            title: "今日の振り返りが明日のヒントに",
-                            message: "Keep（できたこと）とProblem（課題）を書き出し、解決策を Try（アクション） に追加しましょう。Tryは明日のタスクに自動で追加されます。",
-                            isShowing: $showReflectionHint
-                        )
-                    }
-                    
-                    ReflectionAchievementCard(title: "\(viewModel.getDailyTitle(for: viewModel.selectedDate))の達成度", rate1: viewModel.getDailyCompletionRate(for: viewModel.selectedDate), rate2: nil, rate3: nil, color2: .clear, color3: .clear, comparisonText: nil, totalDoneCount: note.tasks.filter { $0.isCompleted }.count, tryDoneCount: note.tasks.filter { $0.isCompleted && $0.type == .tryCarryOver }.count)
-                    
-                    VStack(alignment: .leading, spacing: 10) {
-                        TextEditorView(title: "Keep（できたこと）", text: Binding(get: { note.keep }, set: { viewModel.updateDailyNote($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：朝30分早く起きて読書できた")
-                        TextEditorView(title: "Problem（課題）", text: Binding(get: { note.problem }, set: { viewModel.updateDailyNote($0, field: .problem, date: viewModel.selectedDate) }), placeholder: "例：ついスマホを見すぎて寝るのが遅くなった")
-                        GoalListSection(title: "Try（アクション）", iconColor: .blue, goals: note.tryList, viewModel: viewModel, showCheckboxes: false, templates: [], placeholder: "例：23時以降はスマホを触らない", onUpdate: { viewModel.updateDailyTryList($0, date: viewModel.selectedDate) })
-                        TextEditorView(title: "振り返り（自由記述）", text: Binding(get: { note.reflection }, set: { viewModel.updateDailyNote($0, field: .reflection, date: viewModel.selectedDate) }), minHeight: 120, placeholder: "今日一日の感想を自由に書いてください")
-                    }.padding(.horizontal)
+    }
+    
+    @ViewBuilder private func dailyTab() -> some View {
+        let note = viewModel.currentDailyNote
+        ScrollView {
+            VStack(spacing: 15) {
+                if hasCompletedTutorial {
+                    InlineHintCard(
+                        title: "今日の振り返りが明日のヒントに",
+                        message: "Keep（できたこと）とProblem（課題）を書き出し、解決策を Try（アクション） に追加しましょう。Tryは明日のタスクに自動で追加されます。また、日曜日には週次、月末には月次、年末には年次の振り返りタブも登場します！",
+                        isShowing: $showReflectionHint
+                    )
                 }
-                .padding(.vertical).padding(.bottom, 250)
-            }.scrollDismissesKeyboard(.interactively)
-        }
+                
+                ReflectionAchievementCard(title: "\(viewModel.getDailyTitle(for: viewModel.selectedDate))の達成度", rate1: viewModel.getDailyCompletionRate(for: viewModel.selectedDate), rate2: nil, rate3: nil, color2: .clear, color3: .clear, comparisonText: nil, totalDoneCount: note.tasks.filter { $0.isCompleted }.count, tryDoneCount: note.tasks.filter { $0.isCompleted && $0.type == .tryCarryOver }.count)
+                
+                VStack(alignment: .leading, spacing: 10) {
+                    TextEditorView(title: "Keep（できたこと）", text: Binding(get: { note.keep }, set: { viewModel.updateDailyNote($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：朝30分早く起きて読書できた")
+                    TextEditorView(title: "Problem（課題）", text: Binding(get: { note.problem }, set: { viewModel.updateDailyNote($0, field: .problem, date: viewModel.selectedDate) }), placeholder: "例：ついスマホを見すぎて寝るのが遅くなった")
+                    GoalListSection(title: "Try（アクション）", iconColor: .blue, goals: note.tryList, viewModel: viewModel, showCheckboxes: false, templates: [], placeholder: "例：23時以降はスマホを触らない", onUpdate: { viewModel.updateDailyTryList($0, date: viewModel.selectedDate) })
+                    TextEditorView(title: "振り返り（自由記述）", text: Binding(get: { note.reflection }, set: { viewModel.updateDailyNote($0, field: .reflection, date: viewModel.selectedDate) }), minHeight: 120, placeholder: "今日一日の感想を自由に書いてください")
+                }.padding(.horizontal)
+            }
+            .padding(.vertical).padding(.bottom, 250)
+        }.scrollDismissesKeyboard(.interactively)
+    }
     
     @ViewBuilder private func weeklyTab() -> some View {
         let weekData = viewModel.currentWeekData
         ScrollView {
             VStack(spacing: 15) {
+                if hasCompletedTutorial {
+                    InlineHintCard(
+                        title: "1週間の歩みを振り返る",
+                        message: "今週もお疲れ様でした！日々の達成度を振り返り、良かったことや課題を整理しましょう。来週をさらに充実させるためのTryを決めるチャンスです。",
+                        isShowing: $showWeeklyHint
+                    )
+                }
+
                 ReflectionAchievementCard(title: "今週の達成度", rate1: viewModel.getWeeklyDailyAvgRate(for: viewModel.selectedDate), rate2: viewModel.getWeeklyGoalRate(for: viewModel.selectedDate), rate3: nil, color2: .orange, color3: .clear, comparisonText: viewModel.getComparisonText(for: viewModel.selectedDate, isWeekly: true), totalDoneCount: viewModel.getCompletedTasksCount(for: viewModel.selectedDate, isWeekly: true), tryDoneCount: viewModel.getTryExecutionCount(for: viewModel.selectedDate, isWeekly: true))
                 ProgressListView(title: "日次目標の達成状況", items: viewModel.getDailyGoalsProgressStats(for: viewModel.selectedDate, isWeekly: true))
                 VStack(alignment: .leading, spacing: 10) {
@@ -318,11 +331,21 @@ struct ReflectionView: View {
     }
     
     @ViewBuilder private func monthlyTab() -> some View {
-        let monthData = viewModel.currentMonthData; let nextMonthDate = Calendar.current.date(byAdding: .month, value: 1, to: viewModel.selectedDate) ?? viewModel.selectedDate; let nextMonthData = viewModel.nextMonthData
+        let monthData = viewModel.currentMonthData
+        let nextMonthDate = Calendar.current.date(byAdding: .month, value: 1, to: viewModel.selectedDate) ?? viewModel.selectedDate
+        let nextMonthData = viewModel.getMonthData(for: nextMonthDate)
         let weekData = viewModel.currentWeekData
         
         ScrollView {
             VStack(spacing: 15) {
+                if hasCompletedTutorial {
+                    InlineHintCard(
+                        title: "1ヶ月の成果をチェック",
+                        message: "この1ヶ月の取り組みを振り返りましょう。目標の達成率を振り返りながら、翌月の新しい目標を計画してみましょう。",
+                        isShowing: $showMonthlyHint
+                    )
+                }
+
                 ReflectionAchievementCard(title: "今月の達成度", rate1: viewModel.getMonthlyDailyAvgRate(for: viewModel.selectedDate), rate2: viewModel.getMonthlyWeeklyGoalAvgRate(for: viewModel.selectedDate), rate3: viewModel.getMonthlyGoalRate(for: viewModel.selectedDate), color2: .orange, color3: .blue, comparisonText: viewModel.getComparisonText(for: viewModel.selectedDate, isWeekly: false), totalDoneCount: viewModel.getCompletedTasksCount(for: viewModel.selectedDate, isWeekly: false), tryDoneCount: viewModel.getTryExecutionCount(for: viewModel.selectedDate, isWeekly: false))
                 ProgressListView(title: "日次目標の達成状況", items: viewModel.getDailyGoalsProgressStats(for: viewModel.selectedDate, isWeekly: false))
                 ProgressListView(title: "週次目標の達成状況", items: viewModel.getWeeklyGoalsProgressStats(for: viewModel.selectedDate))
@@ -357,7 +380,15 @@ struct ReflectionView: View {
         ZStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    Text("🎉 年末の振り返り").font(.title2).bold().padding(.top)
+                    if hasCompletedTutorial {
+                        InlineHintCard(
+                            title: "1年の集大成を祝う",
+                            message: "素晴らしい1年でしたね！「未来の自分」にどれだけ近づけたか確認しましょう。達成した項目にチェックを入れて、自分を最大限に褒めてあげてください。",
+                            isShowing: $showYearlyHint
+                        ).padding(.top)
+                    } else {
+                        Text("🎉 年末の振り返り").font(.title2).bold().padding(.top)
+                    }
                     VStack(alignment: .leading, spacing: 15) {
                         ForEach(viewModel.futureVisions) { vision in
                             let isReadyToComplete = vision.subTasks.isEmpty ? true : vision.subTasks.allSatisfy { $0.isCompleted }
@@ -378,7 +409,7 @@ struct ReflectionView: View {
     }
 }
 
-// MARK: - 🟢 修正：カレンダーの移動制限を追加
+// MARK: - カレンダー画面
 struct CalendarView: View {
     @ObservedObject var viewModel: GoalViewModel; @Binding var selectedTab: Int
     @State private var monthOffset: Int = 0; @State private var showDatePicker = false
@@ -388,7 +419,6 @@ struct CalendarView: View {
     private func displayDate(for offset: Int) -> Date { let c = Calendar.current; return c.date(byAdding: .month, value: offset, to: c.date(from: c.dateComponents([.year, .month], from: Date())) ?? Date()) ?? Date() }
     private var isCurrentMonth: Bool { monthOffset == 0 }
 
-    // 🌟 アプリ開始月からの最小オフセットを計算
     private var minOffset: Int {
         guard let start = viewModel.appSettings.appStartDate else { return 0 }
         let cal = Calendar.current
@@ -403,7 +433,6 @@ struct CalendarView: View {
 
     var body: some View {
         NavigationView {
-            // 🌟 過去への移動を minOffset までに制限
             TabView(selection: $monthOffset) {
                 ForEach(minOffset..<61, id: \.self) { offset in
                     CalendarPage(viewModel: viewModel, offset: offset, displayDate: displayDate(for: offset), selectedTab: $selectedTab).tag(offset)
@@ -429,12 +458,10 @@ struct CalendarView: View {
                 NavigationView {
                     VStack {
                         HStack {
-                            // 🌟 年の選択を開始年〜2050年に制限
                             Picker("年", selection: $jumpYear) {
                                 ForEach(startYear...2050, id: \.self) { y in Text("\(y)年").tag(y) }
                             }.pickerStyle(WheelPickerStyle())
                             
-                            // 🌟 月の選択を開始月より前にならないように制限
                             Picker("月", selection: $jumpMonth) {
                                 ForEach(1...12, id: \.self) { m in
                                     if jumpYear > startYear || m >= startMonth {
@@ -502,8 +529,8 @@ struct CalendarPage: View {
 
                 if hasCompletedTutorial {
                     InlineHintCard(
-                        title: "目標を分解して今日の一歩に",
-                        message: "月ごと・週ごとに目標を立てることで、やるべきことがはっきりします。日次目標（習慣）は毎日ホーム画面に自動で表示されます。",
+                        title: "目標を立てて今日の一歩に",
+                        message: "月次・週次の目標を立てましょう。日次目標（習慣）は毎日ホーム画面に自動で表示されます。",
                         isShowing: $showCalendarHint
                     )
                 }

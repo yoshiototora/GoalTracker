@@ -62,7 +62,7 @@ struct TutorialView: View {
                             } else if step == 2 {
                                 Image(systemName: "square.and.pencil").resizable().scaledToFit().frame(width: 100, height: 100).foregroundColor(.green)
                                 Text("振り返りで成長する").font(.title2.bold())
-                                Text("HabitSparkでは、KPTで振り返りを行います。\n\nKeep：できたこと\nProblem：課題\nTry：次にやること\n\nTryはそのまま次のタスクになります。").multilineTextAlignment(.center)
+                                Text("HabitSparkでは、KPTで振り返りを行います。\n\nKeep：できたこと\nProblem：課題\nTry：次にやること\n\nTryはそのまま次のタスクになります。\n\nさらに、日曜日には週次、月末には月次、年末には年次振り返りも登場します。").multilineTextAlignment(.center)
                             } else if step == 3 {
                                 Image(systemName: "sparkles").resizable().scaledToFit().frame(width: 100, height: 100).foregroundColor(.pink)
                                 Text("準備完了です！").font(.title2.bold())
