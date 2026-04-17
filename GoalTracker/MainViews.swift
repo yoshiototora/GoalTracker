@@ -1,74 +1,136 @@
 import SwiftUI
 import UIKit
 
-// MARK: - ホーム画面
 struct HomeView: View {
-    @ObservedObject var viewModel: GoalViewModel; @Binding var selectedTab: Int
-    @State private var newTaskTitle = ""; @FocusState private var isInputFocused: Bool
-    @AppStorage("goalTutorialStep") var tutorialStep = 0; @State private var editingTask: Task? = nil
+    @ObservedObject var viewModel: GoalViewModel
+    @Binding var selectedTab: Int
+    @State private var newTaskTitle = ""
+    @FocusState private var isInputFocused: Bool
+    @AppStorage("goalTutorialStep") var tutorialStep = 0
+    @State private var editingTask: Task? = nil
+    
+    // ヒント表示用の状態管理
+    @AppStorage("showHomeHint") private var showHomeHint = true
+    @AppStorage("hasCompletedMainTutorial") private var hasCompletedTutorial = false
+    
     private var isToday: Bool { Calendar.current.isDateInToday(viewModel.selectedDate) }
     
     var body: some View {
         NavigationView {
-            VStack {
+            VStack(spacing: 0) {
                 StreakBadgeView(streak: viewModel.currentDailyStreak)
+                
+                if hasCompletedTutorial {
+                    InlineHintCard(
+                        title: "今日のタスクをこなそう",
+                        message: "カレンダーで設定した「日次目標」と、振り返りで決めた「Try（次やること）」がここに並びます。完了したらチェックしましょう！",
+                        isShowing: $showHomeHint
+                    )
+                }
+                
                 HStack {
-                    TextField(isToday ? "今日やること..." : "この日のタスク...", text: $newTaskTitle).textFieldStyle(RoundedBorderTextFieldStyle()).focused($isInputFocused).onSubmit { addTask() }
-                    Button(action: addTask) { Image(systemName: "plus.circle.fill").font(.title).foregroundColor(.gray) }
+                    TextField(isToday ? "今日やること..." : "この日のタスク...", text: $newTaskTitle)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .focused($isInputFocused)
+                        .onSubmit { addTask() }
+                    Button(action: addTask) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title)
+                            .foregroundColor(.gray)
+                    }
                 }.padding()
                 
-                let currentTasks = viewModel.currentDailyNote.tasks; let hasDailyGoals = !viewModel.currentMonthData.dailyGoals.isEmpty
+                let currentTasks = viewModel.currentDailyNote.tasks
+                let hasDailyGoals = !viewModel.currentMonthData.dailyGoals.isEmpty
+                
                 if currentTasks.isEmpty {
-                    if !hasDailyGoals { EmptyStateView(title: "目標を設定しましょう", description: "まずはカレンダータブから日次目標を追加してみましょう。", buttonTitle: "カレンダーを開く", iconName: "target", action: { selectedTab = 2; if tutorialStep == 0 { tutorialStep = 1 } }) }
-                    else { EmptyStateView(title: isToday ? "今日のタスクはありません" : "タスクはありません", description: "やるべきことを追加してみましょう", buttonTitle: "タスクを追加", iconName: "checklist.unchecked", action: { isInputFocused = true }) }
+                    if !hasDailyGoals {
+                        EmptyStateView(title: "目標を設定しましょう", description: "まずはカレンダータブから日次目標を追加してみましょう。", buttonTitle: "カレンダーを開く", iconName: "target", action: { selectedTab = 2; if tutorialStep == 0 { tutorialStep = 1 } })
+                    } else {
+                        EmptyStateView(title: isToday ? "今日のタスクはありません" : "タスクはありません", description: "やるべきことを追加してみましょう", buttonTitle: "タスクを追加", iconName: "checklist.unchecked", action: { isInputFocused = true })
+                    }
                 } else {
                     List {
                         Section {
                             ForEach(currentTasks) { task in
-                                                            let cat = viewModel.getCategory(id: task.categoryId)
-                                                            HStack(spacing: 12) {
-                                                                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                                                                    .foregroundColor(task.isCompleted ? .green : cat.color)
-                                                                    .font(.system(size: 22))
-                                                                
-                                                                // 🌟 ここを追加！：Tryタスクなら専用のバッジ（ラベル）をつける
-                                                                if task.type == .tryCarryOver {
-                                                                    Text("Try")
-                                                                        .font(.system(size: 10, weight: .bold))
-                                                                        .foregroundColor(.white)
-                                                                        .padding(.horizontal, 6)
-                                                                        .padding(.vertical, 2)
-                                                                        .background(task.isCompleted ? Color.gray.opacity(0.8) : Color.orange)
-                                                                        .cornerRadius(6)
-                                                                }
-                                                                
-                                                                if task.type == .dailyGoal {
-                                                                    Text(task.title).bold().strikethrough(task.isCompleted).foregroundColor(task.isCompleted ? .gray : .primary)
-                                                                } else {
-                                                                    Text(task.title).strikethrough(task.isCompleted).foregroundColor(task.isCompleted ? .gray : .primary)
-                                                                }
-                                                                Spacer()
-                                                            }
-                                                            .contentShape(Rectangle())
-                                .onTapGesture { if task.isYearlyReflection && Calendar.current.component(.month, from: viewModel.selectedDate) != 12 { return }; let impact = UIImpactFeedbackGenerator(style: .medium); impact.impactOccurred(); viewModel.toggleTask(id: task.id, for: viewModel.selectedDate) }
+                                let cat = viewModel.getCategory(id: task.categoryId)
+                                HStack(spacing: 12) {
+                                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(task.isCompleted ? .green : cat.color)
+                                        .font(.system(size: 22))
+                                    
+                                    if task.type == .tryCarryOver {
+                                        Text("Try")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(task.isCompleted ? Color.gray.opacity(0.8) : Color.orange)
+                                            .cornerRadius(6)
+                                    }
+                                    
+                                    Text(task.title)
+                                        .bold(task.type == .dailyGoal)
+                                        .strikethrough(task.isCompleted)
+                                        .foregroundColor(task.isCompleted ? .gray : .primary)
+                                    Spacer()
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if task.isYearlyReflection && Calendar.current.component(.month, from: viewModel.selectedDate) != 12 { return }
+                                    let impact = UIImpactFeedbackGenerator(style: .medium)
+                                    impact.impactOccurred()
+                                    viewModel.toggleTask(id: task.id, for: viewModel.selectedDate)
+                                }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    if task.type == .normal { Button(role: .destructive) { if let idx = currentTasks.firstIndex(where: { $0.id == task.id }) { viewModel.removeTasks(at: IndexSet(integer: idx), for: viewModel.selectedDate) } } label: { Image(systemName: "trash") }; Button { editingTask = task } label: { Image(systemName: "pencil") }.tint(.orange) }
+                                    if task.type == .normal {
+                                        Button(role: .destructive) {
+                                            if let idx = currentTasks.firstIndex(where: { $0.id == task.id }) {
+                                                viewModel.removeTasks(at: IndexSet(integer: idx), for: viewModel.selectedDate)
+                                            }
+                                        } label: { Image(systemName: "trash") }
+                                        Button { editingTask = task } label: { Image(systemName: "pencil") }.tint(.orange)
+                                    }
                                 }
                             }
                         }
-                    }.listStyle(PlainListStyle()).scrollDismissesKeyboard(.interactively)
-                    .sheet(item: $editingTask) { task in EditItemSheet(viewModel: viewModel, title: task.title, categoryId: task.categoryId) { newTitle, newCatId in viewModel.editTask(id: task.id, newTitle: newTitle, newCategoryId: newCatId, for: viewModel.selectedDate) } }
+                    }
+                    .listStyle(PlainListStyle())
+                    .scrollDismissesKeyboard(.interactively)
+                    .sheet(item: $editingTask) { task in
+                        EditItemSheet(viewModel: viewModel, title: task.title, categoryId: task.categoryId) { newTitle, newCatId in
+                            viewModel.editTask(id: task.id, newTitle: newTitle, newCategoryId: newCatId, for: viewModel.selectedDate)
+                        }
+                    }
                 }
             }
             .navigationTitle(isToday ? "今日のタスク" : viewModel.getDailyTitle(for: viewModel.selectedDate))
             .onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) { if !isToday { Button(action: { withAnimation { viewModel.selectedDate = Date() } }) { HStack(spacing: 4) { Image(systemName: "arrow.uturn.backward.circle"); Text("今日に戻る") }.font(.caption).bold().foregroundColor(.blue).padding(.horizontal, 8).padding(.vertical, 4).background(Color.blue.opacity(0.1)).cornerRadius(12) } } }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if !isToday {
+                        Button(action: { withAnimation { viewModel.selectedDate = Date() } }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.uturn.backward.circle")
+                                Text("今日に戻る")
+                            }
+                            .font(.caption).bold().foregroundColor(.blue)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.1)).cornerRadius(12)
+                        }
+                    }
+                }
             }
             .contentShape(Rectangle()).onTapGesture { hideKeyboard() }
         }
     }
-    private func addTask() { if !newTaskTitle.isEmpty { viewModel.addTask(title: newTaskTitle, for: viewModel.selectedDate); newTaskTitle = "" } }
+    
+    private func addTask() {
+        if !newTaskTitle.isEmpty {
+            viewModel.addTask(title: newTaskTitle, for: viewModel.selectedDate)
+            newTaskTitle = ""
+        }
+    }
 }
 
 struct EmptyStateView: View {
@@ -102,6 +164,9 @@ struct ReflectionView: View {
     @ObservedObject var viewModel: GoalViewModel
     @State private var reflectionType = 0
     @State private var showYearlyAnimation = false
+    
+    @AppStorage("showReflectionHint") private var showReflectionHint = true
+    @AppStorage("hasCompletedMainTutorial") private var hasCompletedTutorial = false
     
     private var isToday: Bool { Calendar.current.isDateInToday(viewModel.selectedDate) }
     private var isDecember: Bool { Calendar.current.component(.month, from: viewModel.selectedDate) == 12 }
@@ -165,50 +230,74 @@ struct ReflectionView: View {
     let monthlyTemplates = ["体重を1kg落とす", "本を3冊読む", "映画を3本見る", "貯金1万円", "新しい場所に行く"]
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                Picker("振り返り", selection: $reflectionType) {
-                    Text("日次").tag(0)
-                    if shouldShowWeeklyReflection { Text("週次").tag(1) }
-                    if shouldShowMonthlyReflection { Text("月次").tag(2) }
-                    if isDecember { Text("年次").tag(3) }
-                }.pickerStyle(SegmentedPickerStyle()).padding()
-                .onChange(of: viewModel.selectedDate) { _, _ in
-                    if reflectionType == 1 && !shouldShowWeeklyReflection { reflectionType = 0 }
-                    if reflectionType == 2 && !shouldShowMonthlyReflection { reflectionType = 0 }
-                    if reflectionType == 3 && !isDecember { reflectionType = 0 }
+            NavigationView {
+                VStack(spacing: 0) {
+                    Picker("振り返り", selection: $reflectionType) {
+                        Text("日次").tag(0)
+                        if shouldShowWeeklyReflection { Text("週次").tag(1) }
+                        if shouldShowMonthlyReflection { Text("月次").tag(2) }
+                        if isDecember { Text("年次").tag(3) }
+                    }
+                    .pickerStyle(SegmentedPickerStyle()).padding()
+                    .onChange(of: viewModel.selectedDate) { _, _ in
+                        if reflectionType == 1 && !shouldShowWeeklyReflection { reflectionType = 0 }
+                        if reflectionType == 2 && !shouldShowMonthlyReflection { reflectionType = 0 }
+                        if reflectionType == 3 && !isDecember { reflectionType = 0 }
+                    }
+                    
+                    TabView(selection: $reflectionType) {
+                        dailyTab().tag(0)
+                        if shouldShowWeeklyReflection { weeklyTab().tag(1) }
+                        if shouldShowMonthlyReflection { monthlyTab().tag(2) }
+                        if isDecember { yearlyTab().tag(3) }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
                 }
-                TabView(selection: $reflectionType) {
-                    dailyTab().tag(0)
-                    if shouldShowWeeklyReflection { weeklyTab().tag(1) }
-                    if shouldShowMonthlyReflection { monthlyTab().tag(2) }
-                    if isDecember { yearlyTab().tag(3) }
-                }.tabViewStyle(.page(indexDisplayMode: .never))
-            }
-            .navigationTitle(isToday ? "振り返り" : "\(viewModel.getDailyTitle(for: viewModel.selectedDate))")
-            .navigationBarTitleDisplayMode(.inline).onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if !isToday { Button(action: { withAnimation { viewModel.selectedDate = Date() } }) { HStack(spacing: 4) { Image(systemName: "arrow.uturn.backward.circle"); Text("今日に戻る") }.font(.caption).bold().foregroundColor(.blue).padding(.horizontal, 8).padding(.vertical, 4).background(Color.blue.opacity(0.1)).cornerRadius(12) } }
+                .navigationTitle(isToday ? "振り返り" : "\(viewModel.getDailyTitle(for: viewModel.selectedDate))")
+                .navigationBarTitleDisplayMode(.inline)
+                .onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        if !isToday {
+                            Button(action: { withAnimation { viewModel.selectedDate = Date() } }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.uturn.backward.circle")
+                                    Text("今日に戻る")
+                                }
+                                .font(.caption).bold().foregroundColor(.blue)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.1)).cornerRadius(12)
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
-    
-    @ViewBuilder private func dailyTab() -> some View {
-        let note = viewModel.currentDailyNote
-        ScrollView {
-            VStack(spacing: 15) {
-                ReflectionAchievementCard(title: "\(viewModel.getDailyTitle(for: viewModel.selectedDate))の達成度", rate1: viewModel.getDailyCompletionRate(for: viewModel.selectedDate), rate2: nil, rate3: nil, color2: .clear, color3: .clear, comparisonText: nil, totalDoneCount: note.tasks.filter { $0.isCompleted }.count, tryDoneCount: note.tasks.filter { $0.isCompleted && $0.type == .tryCarryOver }.count)
-                VStack(alignment: .leading, spacing: 10) {
-                    TextEditorView(title: "Keep（できたこと）", text: Binding(get: { note.keep }, set: { viewModel.updateDailyNote($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：朝30分早く起きて読書できた")
-                    TextEditorView(title: "Problem（課題）", text: Binding(get: { note.problem }, set: { viewModel.updateDailyNote($0, field: .problem, date: viewModel.selectedDate) }), placeholder: "例：ついスマホを見すぎて寝るのが遅くなった")
-                    GoalListSection(title: "Try（アクション）", iconColor: .blue, goals: note.tryList, viewModel: viewModel, showCheckboxes: false, templates: [], placeholder: "例：23時以降はスマホを触らない", onUpdate: { viewModel.updateDailyTryList($0, date: viewModel.selectedDate) })
-                    TextEditorView(title: "振り返り（自由記述）", text: Binding(get: { note.reflection }, set: { viewModel.updateDailyNote($0, field: .reflection, date: viewModel.selectedDate) }), minHeight: 120, placeholder: "例：今日は全体的に集中できた。明日も頑張ろう")
-                }.padding(.horizontal)
-            }.padding(.vertical).padding(.bottom, 250).contentShape(Rectangle()).onTapGesture { hideKeyboard() }
-        }.scrollDismissesKeyboard(.interactively)
-    }
+        
+        @ViewBuilder private func dailyTab() -> some View {
+            let note = viewModel.currentDailyNote
+            ScrollView {
+                VStack(spacing: 15) {
+                    if hasCompletedTutorial {
+                        InlineHintCard(
+                            title: "今日の振り返りが明日のヒントに",
+                            message: "Keep（できたこと）とProblem（課題）を書き出し、解決策を Try（アクション） に追加しましょう。Tryは明日のタスクに自動で追加されます。",
+                            isShowing: $showReflectionHint
+                        )
+                    }
+                    
+                    ReflectionAchievementCard(title: "\(viewModel.getDailyTitle(for: viewModel.selectedDate))の達成度", rate1: viewModel.getDailyCompletionRate(for: viewModel.selectedDate), rate2: nil, rate3: nil, color2: .clear, color3: .clear, comparisonText: nil, totalDoneCount: note.tasks.filter { $0.isCompleted }.count, tryDoneCount: note.tasks.filter { $0.isCompleted && $0.type == .tryCarryOver }.count)
+                    
+                    VStack(alignment: .leading, spacing: 10) {
+                        TextEditorView(title: "Keep（できたこと）", text: Binding(get: { note.keep }, set: { viewModel.updateDailyNote($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：朝30分早く起きて読書できた")
+                        TextEditorView(title: "Problem（課題）", text: Binding(get: { note.problem }, set: { viewModel.updateDailyNote($0, field: .problem, date: viewModel.selectedDate) }), placeholder: "例：ついスマホを見すぎて寝るのが遅くなった")
+                        GoalListSection(title: "Try（アクション）", iconColor: .blue, goals: note.tryList, viewModel: viewModel, showCheckboxes: false, templates: [], placeholder: "例：23時以降はスマホを触らない", onUpdate: { viewModel.updateDailyTryList($0, date: viewModel.selectedDate) })
+                        TextEditorView(title: "振り返り（自由記述）", text: Binding(get: { note.reflection }, set: { viewModel.updateDailyNote($0, field: .reflection, date: viewModel.selectedDate) }), minHeight: 120, placeholder: "今日一日の感想を自由に書いてください")
+                    }.padding(.horizontal)
+                }
+                .padding(.vertical).padding(.bottom, 250)
+            }.scrollDismissesKeyboard(.interactively)
+        }
     
     @ViewBuilder private func weeklyTab() -> some View {
         let weekData = viewModel.currentWeekData
@@ -375,9 +464,18 @@ struct CalendarView: View {
 }
 
 struct CalendarPage: View {
-    @ObservedObject var viewModel: GoalViewModel; let offset: Int; let displayDate: Date; @Binding var selectedTab: Int
+    @ObservedObject var viewModel: GoalViewModel
+    let offset: Int
+    let displayDate: Date
+    @Binding var selectedTab: Int
     @AppStorage("goalTutorialStep") var tutorialStep = 0
-    let dailyTemplates = ["読書を10分", "水を1.5L飲む", "スクワット15回", "日記を1行書く", "5分片付け"]; let weeklyTemplates = ["ジムに2回行く", "本を1冊読む", "休肝日を2日作る", "作り置きをする", "週末に掃除機"]; let monthlyTemplates = ["体重を1kg落とす", "本を3冊読む", "映画を3本見る", "貯金1万円", "新しい場所に行く"]
+    
+    @AppStorage("showCalendarHint") private var showCalendarHint = true
+    @AppStorage("hasCompletedMainTutorial") private var hasCompletedTutorial = false
+    
+    let dailyTemplates = ["読書を10分", "水を1.5L飲む", "スクワット15回", "日記を1行書く", "5分片付け"]
+    let weeklyTemplates = ["ジムに2回行く", "本を1冊読む", "休肝日を2日作る", "作り置きをする", "週末に掃除機"]
+    let monthlyTemplates = ["体重を1kg落とす", "本を3冊読む", "映画を3本見る", "貯金1万円", "新しい場所に行く"]
 
     var body: some View {
         let referenceDate = Calendar.current.isDate(displayDate, equalTo: viewModel.selectedDate, toGranularity: .month) ? viewModel.selectedDate : displayDate
@@ -401,20 +499,27 @@ struct CalendarPage: View {
                         ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 10) { BatonTag(title: "先月より", items: monthlyTrys, color: .blue); BatonTag(title: "先週より", items: weeklyTrys, color: .orange); BatonTag(title: "昨日より", items: yesterdayTrys, color: .green) }.padding(.horizontal) }
                     }
                 }.padding(.vertical, 5)
+
+                if hasCompletedTutorial {
+                    InlineHintCard(
+                        title: "目標を分解して今日の一歩に",
+                        message: "月ごと・週ごとに目標を立てることで、やるべきことがはっきりします。日次目標（習慣）は毎日ホーム画面に自動で表示されます。",
+                        isShowing: $showCalendarHint
+                    )
+                }
                 
                 VStack(spacing: 10) {
-                    if tutorialStep == 1 { TutorialBubble(text: "まずは「今月の目標」を立てましょう\n大きめの目標や、1ヶ月で達成したいことを書きます。\n例：体重を1kg落とす", step: $tutorialStep) }
+                    if tutorialStep == 1 { TutorialBubble(text: "まずは「今月の目標」を立てましょう\n例：体重を1kg落とす", step: $tutorialStep) }
                     GoalListSection(title: "\(viewModel.getMonthlyTitle(for: displayDate))の月次目標", iconColor: .blue, goals: monthData.monthlyGoals, viewModel: viewModel, showCheckboxes: false, templates: monthlyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .monthly, date: displayDate) }, onCopy: { copyPrev(field: .monthly, date: displayDate) })
-                    if tutorialStep == 2 { TutorialBubble(text: "次に、月次目標を達成するための「今週の目標」に落とし込みます。\n例：週に2回ジムに行く", step: $tutorialStep) }
+                    if tutorialStep == 2 { TutorialBubble(text: "次に、月次目標を達成するための「今週の目標」を決めます。", step: $tutorialStep) }
                     GoalListSection(title: "\(viewModel.getMonthlyTitle(for: displayDate))の週次目標", iconColor: .orange, goals: monthData.weeklyGoals, viewModel: viewModel, showCheckboxes: false, templates: weeklyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .weekly, date: displayDate) }, onCopy: { copyPrev(field: .weekly, date: displayDate) })
-                    if tutorialStep == 3 { TutorialBubble(text: "最後に、毎日やるべき「日次目標（習慣）」を決めます。\nこれが毎日ホーム画面にタスクとして表示されます\n例：毎日スクワット15回", step: $tutorialStep, isLast: true) }
+                    if tutorialStep == 3 { TutorialBubble(text: "最後に、毎日やるべき「日次目標」を決めます。", step: $tutorialStep, isLast: true) }
                     GoalListSection(title: "\(viewModel.getMonthlyTitle(for: displayDate))の日次目標", iconColor: .green, goals: monthData.dailyGoals, viewModel: viewModel, showCheckboxes: false, templates: dailyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .daily, date: displayDate) }, onCopy: { copyPrev(field: .daily, date: displayDate) })
                 }.padding(.horizontal)
                 
                 CalendarGridView(viewModel: viewModel, displayDate: displayDate, selectedDate: $viewModel.selectedDate, selectedTab: $selectedTab)
-                
-            }.padding(.top, 10).padding(.bottom, 40).contentShape(Rectangle()).onTapGesture { hideKeyboard() }
-            .animation(.easeInOut(duration: 0.25), value: viewModel.selectedDate)
+            }
+            .padding(.top, 10).padding(.bottom, 40)
         }.scrollDismissesKeyboard(.interactively)
     }
     
@@ -427,14 +532,47 @@ struct CalendarPage: View {
 
 // MARK: - 未来の自分画面
 struct FutureVisionView: View {
-    @ObservedObject var viewModel: GoalViewModel; @State private var newVisionTitle = ""; @FocusState private var isInputFocused: Bool
+    @ObservedObject var viewModel: GoalViewModel
+    @State private var newVisionTitle = ""
+    @FocusState private var isInputFocused: Bool
+    
+    @AppStorage("showFutureVisionHint") private var showFutureVisionHint = true
+    @AppStorage("hasCompletedMainTutorial") private var hasCompletedTutorial = false
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                Text("目標を達成した先に、どうなっていたいですか？\n具体的なステップを追加して夢を可視化しましょう。").font(.caption).foregroundColor(.secondary).padding()
-                HStack { TextField("例：海外で働く", text: $newVisionTitle).textFieldStyle(RoundedBorderTextFieldStyle()).focused($isInputFocused).onSubmit { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }; Button(action: { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }) { Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.pink) }.buttonStyle(PlainButtonStyle()) }.padding(.horizontal).padding(.bottom, 10)
-                List { ForEach(viewModel.futureVisions) { vision in FutureVisionRow(vision: vision, viewModel: viewModel) } }.listStyle(PlainListStyle()).scrollDismissesKeyboard(.interactively)
-            }.navigationTitle("未来の自分").contentShape(Rectangle()).onTapGesture { hideKeyboard() }
+                if hasCompletedTutorial {
+                    InlineHintCard(
+                        title: "「なりたい自分」を可視化",
+                        message: "最終的にどんな自分になっていたいか、大きな夢を追加しましょう。「ステップを追加」で、達成までの具体的な道のりを整理できます。",
+                        isShowing: $showFutureVisionHint
+                    ).padding(.top, 10)
+                } else {
+                    Text("目標を達成した先に、どうなっていたいですか？\n具体的なステップを追加して夢を可視化しましょう。")
+                        .font(.caption).foregroundColor(.secondary).padding()
+                }
+                
+                HStack {
+                    TextField("例：海外で働く", text: $newVisionTitle)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .focused($isInputFocused)
+                        .onSubmit { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }
+                    Button(action: { if !newVisionTitle.isEmpty { viewModel.addFutureVision(title: newVisionTitle); newVisionTitle = "" } }) {
+                        Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.pink)
+                    }.buttonStyle(PlainButtonStyle())
+                }.padding(.horizontal).padding(.bottom, 10)
+                
+                List {
+                    ForEach(viewModel.futureVisions) { vision in
+                        FutureVisionRow(vision: vision, viewModel: viewModel)
+                    }
+                }
+                .listStyle(PlainListStyle())
+                .scrollDismissesKeyboard(.interactively)
+            }
+            .navigationTitle("未来の自分")
+            .contentShape(Rectangle()).onTapGesture { hideKeyboard() }
         }
     }
 }

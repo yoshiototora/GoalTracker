@@ -195,3 +195,35 @@ struct StreakBadgeView: View {
         }
     }
 }
+// Components.swift の末尾に追加
+
+struct InlineHintCard: View {
+    let title: String
+    let message: String
+    @Binding var isShowing: Bool
+    
+    var body: some View {
+        if isShowing {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "lightbulb.fill").foregroundColor(.orange)
+                    Text(title).font(.headline).foregroundColor(.primary)
+                    Spacer()
+                    Button(action: { withAnimation(.easeInOut) { isShowing = false } }) {
+                        Image(systemName: "xmark.circle.fill").foregroundColor(.secondary).font(.system(size: 20))
+                    }
+                }
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineSpacing(4)
+            }
+            .padding(16)
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(16)
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+}
