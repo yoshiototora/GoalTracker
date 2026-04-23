@@ -34,9 +34,9 @@ class GoalViewModel: ObservableObject {
     func monthKey(_ date: Date) -> String { return ymFormatter.string(from: date) }
     
     func getCustomWeekInfo(for date: Date) -> (key: String, dates: [Date]) {
-        var cal = Calendar.current
-        cal.firstWeekday = 2 // 月曜始まり
-        let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+            var cal = Calendar.current
+            cal.firstWeekday = (appSettings.weeklyReflectionWeekday % 7) + 1 // 🌟 変更
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
         guard let startOfWeek = cal.date(from: comps) else { return ("", []) }
         var targetWeekDates: [Date] = []
         for i in 0..<7 {

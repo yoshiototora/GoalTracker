@@ -91,12 +91,20 @@ struct CompositeSummaryCard: View {
     }
 }
 
-// 🟢 修正：星マークと、開始日前のグレーアウト処理を追加
 struct CalendarGridView: View {
     @ObservedObject var viewModel: GoalViewModel
     let displayDate: Date; @Binding var selectedDate: Date; @Binding var selectedTab: Int
     let cols = Array(repeating: GridItem(.flexible()), count: 7)
-    let weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+    
+    // 🌟 振り返り曜日を一番右にするため、表示上の開始曜日を「設定日 + 1」にする
+    private var firstDisplayWeekday: Int {
+        (viewModel.appSettings.weeklyReflectionWeekday % 7) + 1
+    }
+    
+    var weekdays: [String] {
+        let all = ["日", "月", "火", "水", "木", "金", "土"]
+        return (0..<7).map { all[(firstDisplayWeekday - 1 + $0) % 7] }
+    }
     
     var body: some View {
         let days = generateDays()
@@ -106,7 +114,7 @@ struct CalendarGridView: View {
         VStack(spacing: 8) {
             HStack {
                 ForEach(weekdays, id: \.self) { day in
-                    Text(day).font(.caption).bold().foregroundColor(.secondary).frame(maxWidth: .infinity)
+                    Text(day).font(.caption).bold().foregroundColor(day == "日" ? .red : (day == "土" ? .blue : .secondary)).frame(maxWidth: .infinity)
                 }
             }
             
@@ -159,17 +167,17 @@ struct CalendarGridView: View {
     
     func generateDays() -> [Date?] {
         var cal = Calendar.current
-        cal.firstWeekday = 2 // 月曜始まり
+        // 🌟 振り返り日の翌日を週の開始（1列目）として計算
+        cal.firstWeekday = firstDisplayWeekday
         guard let start = cal.date(from: cal.dateComponents([.year, .month], from: displayDate)), let range = cal.range(of: .day, in: .month, for: start) else { return [] }
         
         let weekday = cal.component(.weekday, from: start)
-        let emptyCount = (weekday - 2 + 7) % 7
+        let emptyCount = (weekday - cal.firstWeekday + 7) % 7
         var days: [Date?] = Array(repeating: nil, count: emptyCount)
         
         for i in 0..<range.count { if let d = cal.date(byAdding: .day, value: i, to: start) { days.append(d) } }; return days
     }
 }
-
 struct LuxuriousCompletionEffect: View {
     let completedCount: Int; let messages = ["素晴らしい軌跡を誇りに思いましょう", "継続は力なり、ですね"]
     @State private var showContent = false; @State private var opacities: [Double] = Array(repeating: 0.0, count: 42)

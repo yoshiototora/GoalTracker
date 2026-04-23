@@ -25,32 +25,47 @@ struct AppSettings: Codable {
         CategoryItem(id: "none", name: "指定なし", colorName: "gray")
     ]
     
-    // 🟢 追加：データ追加時のクラッシュと初期化を防ぐ安全装置
-    init() {}
+    // 🌟 追加：週次振り返りの曜日（デフォルトは 1 = 日曜日）
+    var weeklyReflectionWeekday: Int = 1
     
+    // 🟢 古いものを削除し、1つにまとめました
     enum CodingKeys: String, CodingKey {
         case goalNotificationEnabled, goalNotificationTime, reflectionNotificationEnabled, reflectionNotificationTime
         case skipShortFirstWeek, shortWeekThreshold, skipShortLastWeek, shortLastWeekThreshold, appStartDate, categories
+        case weeklyReflectionWeekday
     }
     
+    // 新規作成時の初期化用
+    init() {}
+    
+    // 🟢 追加：既存ユーザーがアップデートした際のクラッシュを防ぐ安全装置
+    // （古い保存データに「weeklyReflectionWeekday」が無くてもエラーにならないようにします）
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        
         goalNotificationEnabled = try container.decodeIfPresent(Bool.self, forKey: .goalNotificationEnabled) ?? false
         goalNotificationTime = try container.decodeIfPresent(Date.self, forKey: .goalNotificationTime) ?? Date()
         reflectionNotificationEnabled = try container.decodeIfPresent(Bool.self, forKey: .reflectionNotificationEnabled) ?? false
         reflectionNotificationTime = try container.decodeIfPresent(Date.self, forKey: .reflectionNotificationTime) ?? Date()
+        
         skipShortFirstWeek = try container.decodeIfPresent(Bool.self, forKey: .skipShortFirstWeek) ?? true
         shortWeekThreshold = try container.decodeIfPresent(Int.self, forKey: .shortWeekThreshold) ?? 3
         skipShortLastWeek = try container.decodeIfPresent(Bool.self, forKey: .skipShortLastWeek) ?? true
         shortLastWeekThreshold = try container.decodeIfPresent(Int.self, forKey: .shortLastWeekThreshold) ?? 3
+        
         appStartDate = try container.decodeIfPresent(Date.self, forKey: .appStartDate)
+        
         categories = try container.decodeIfPresent([CategoryItem].self, forKey: .categories) ?? [
             CategoryItem(id: "action", name: "行動習慣", colorName: "blue"),
             CategoryItem(id: "lifestyle", name: "生活習慣", colorName: "yellow"),
             CategoryItem(id: "none", name: "指定なし", colorName: "gray")
         ]
+        
+        // 古いデータには存在しない項目なので、無ければ 1(日曜日) を入れる
+        weeklyReflectionWeekday = try container.decodeIfPresent(Int.self, forKey: .weeklyReflectionWeekday) ?? 1
     }
 }
+
 
 struct CategoryItem: Identifiable, Codable, Equatable {
     var id: String = UUID().uuidString

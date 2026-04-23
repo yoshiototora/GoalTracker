@@ -24,7 +24,7 @@ struct HomeView: View {
                 if hasCompletedTutorial {
                     InlineHintCard(
                         title: "今日のタスクをこなそう",
-                        message: "カレンダーで設定した「日次目標」と、振り返りで決めた「Try（次やること）」がここに並びます。完了したらチェックしましょう！",
+                        message: "カレンダーで設定した「日次目標」と、振り返りで決めた「Try」がここに並びます。完了したらタップ！\n💡 タスクを左にスワイプすると「編集・削除」ができます。",
                         isShowing: $showHomeHint
                     )
                 }
@@ -90,8 +90,9 @@ struct HomeView: View {
                                                 viewModel.removeTasks(at: IndexSet(integer: idx), for: viewModel.selectedDate)
                                             }
                                         } label: { Image(systemName: "trash") }
-                                        Button { editingTask = task } label: { Image(systemName: "pencil") }.tint(.orange)
                                     }
+                                    // 全てのタスクで編集が行えるように変更
+                                    Button { editingTask = task } label: { Image(systemName: "pencil") }.tint(.orange)
                                 }
                             }
                         }
@@ -183,19 +184,14 @@ struct ReflectionView: View {
     
     private var shouldShowWeeklyReflection: Bool {
         if isBeforeStart { return false }
+        
         let cal = Calendar.current
-        let isSunday = cal.component(.weekday, from: viewModel.selectedDate) == 1
-        guard isSunday else { return false }
+        let isTargetWeekday = cal.component(.weekday, from: viewModel.selectedDate) == viewModel.appSettings.weeklyReflectionWeekday
+        guard isTargetWeekday else { return false }
         
-        if viewModel.appSettings.skipShortFirstWeek {
-            let dayOfMonth = cal.component(.day, from: viewModel.selectedDate)
-            if dayOfMonth <= viewModel.appSettings.shortWeekThreshold { return false }
-        }
-        
-        let weekDates = viewModel.getCustomWeekInfo(for: viewModel.selectedDate).dates
-        let hasAnyActivity = weekDates.contains { !viewModel.getNote(for: $0).tasks.isEmpty }
-        let hasLastWeekTry = !viewModel.getLastWeeklyTryList(for: viewModel.selectedDate).isEmpty
-        return hasLastWeekTry || hasAnyActivity
+        let weekData = viewModel.getWeekData(for: viewModel.selectedDate)
+        let hasReflection = !weekData.keep.isEmpty || !weekData.problem.isEmpty || !weekData.reflection.isEmpty || !weekData.tryList.isEmpty
+        return !hasReflection
     }
     
     private var shouldShowMonthlyReflection: Bool {
@@ -214,20 +210,20 @@ struct ReflectionView: View {
     
     private var shouldShowLastWeekInMonthly: Bool {
         if isBeforeStart { return false }
+        
         let cal = Calendar.current
         let date = viewModel.selectedDate
+        
         let nextDay = cal.date(byAdding: .day, value: 1, to: date) ?? date
         let isLastDayOfMonth = cal.component(.month, from: date) != cal.component(.month, from: nextDay)
-        let isSunday = cal.component(.weekday, from: date) == 1
         
-        guard isLastDayOfMonth && !isSunday else { return false }
+        let isTargetWeekday = cal.component(.weekday, from: date) == viewModel.appSettings.weeklyReflectionWeekday
+        guard isLastDayOfMonth && !isTargetWeekday else { return false }
         
-        if viewModel.appSettings.skipShortLastWeek {
-            let weekday = cal.component(.weekday, from: date)
-            let daysInLastWeek = weekday == 1 ? 7 : weekday - 1
-            if daysInLastWeek <= viewModel.appSettings.shortLastWeekThreshold { return false }
-        }
-        return true
+        let lastWeekDate = cal.date(byAdding: .day, value: -7, to: date) ?? date
+        let lastWeekData = viewModel.getWeekData(for: lastWeekDate)
+        let hasReflection = !lastWeekData.keep.isEmpty || !lastWeekData.problem.isEmpty || !lastWeekData.reflection.isEmpty || !lastWeekData.tryList.isEmpty
+        return !hasReflection
     }
     
     let dailyTemplates = ["読書を10分", "水を1.5L飲む", "スクワット15回", "日記を1行書く", "5分片付け"]
@@ -572,7 +568,7 @@ struct FutureVisionView: View {
                 if hasCompletedTutorial {
                     InlineHintCard(
                         title: "「なりたい自分」を可視化",
-                        message: "最終的にどんな自分になっていたいか、大きな夢を追加しましょう。「ステップを追加」で、達成までの具体的な道のりを整理できます。",
+                        message: "最終的にどんな自分になりたいかを描いてみましょう。\nその先の姿を考えることで、目標へのモチベーションが高まります。\n「ステップを追加」で道のりを整理できます。\n💡 各項目は左にスワイプで編集・削除できます。",
                         isShowing: $showFutureVisionHint
                     ).padding(.top, 10)
                 } else {
@@ -656,6 +652,18 @@ struct SettingsView: View {
                 }
                 
                 Section("振り返りの設定") {
+                    Picker("週次振り返りの曜日", selection: Binding(
+                        get: { viewModel.appSettings.weeklyReflectionWeekday },
+                        set: { viewModel.appSettings.weeklyReflectionWeekday = $0; viewModel.saveSettings() }
+                    )) {
+                        Text("日曜日").tag(1)
+                        Text("月曜日").tag(2)
+                        Text("火曜日").tag(3)
+                        Text("水曜日").tag(4)
+                        Text("木曜日").tag(5)
+                        Text("金曜日").tag(6)
+                        Text("土曜日").tag(7)
+                    }
                     Toggle("月の初週をスキップ", isOn: Binding(get: { viewModel.appSettings.skipShortFirstWeek }, set: { viewModel.appSettings.skipShortFirstWeek = $0; viewModel.saveSettings() }))
                     if viewModel.appSettings.skipShortFirstWeek {
                         Stepper(value: Binding(get: { viewModel.appSettings.shortWeekThreshold }, set: { viewModel.appSettings.shortWeekThreshold = $0; viewModel.saveSettings() }), in: 1...6) {
