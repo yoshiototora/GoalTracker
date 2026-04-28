@@ -1,101 +1,120 @@
 # HabitSpark
+
+[![App Store](https://img.shields.io/badge/App_Store-Download-blue?style=for-the-badge&logo=apple)](https://apps.apple.com/jp/app/id6762178668)
+![Swift](https://img.shields.io/badge/Swift-5.10-orange?style=for-the-badge&logo=swift)
+![SwiftUI](https://img.shields.io/badge/SwiftUI-Framework-blue?style=for-the-badge)
+![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
+
 「やりたい」を、明日への活力に。
 
-📱 **App Store**
+HabitSparkは、**KPT（Keep / Problem / Try）フレームワーク**を軸に、  
+振り返りを通じて習慣の継続と行動改善を支援するiOSアプリです。
 
-[HabitSpark-振り返りで続くシンプル習慣化アプリ](https://apps.apple.com/app/habitspark-振り返りで続くシンプル習慣化アプリ/id6762178668)
-
-HabitSparkは、KPT（Keep / Problem / Try）フレームワークを軸にした、振り返りと習慣化のためのiOSアプリケーションです。
-
----
-
-## 🚀 アプリの概要
-
-ただタスクをこなすだけでなく、「振り返り」を通じて自分自身の行動を改善していくことを目的としています。
-
-「未来の自分」を定義し、そこに至るまでの道のりを視覚化することで、モチベーションを維持しながら目標達成をサポートします。
-
-<img width="1400" height="418" alt="image" src="https://github.com/user-attachments/assets/2d324161-7355-4fd7-a4d9-c95d908addc8" />
-
-<img width="1400" height="602" alt="image" src="https://github.com/user-attachments/assets/98f43034-670b-4a04-9cac-1265ab48989c" />
-
-
+📱 **App Store**  
+[HabitSpark - 振り返りで続くシンプル習慣化アプリ](https://apps.apple.com/app/habitspark-振り返りで続くシンプル習慣化アプリ/id6762178668)
 
 ---
 
-## ✨ 主な機能
+## 🚀 Overview
 
-### 📝 KPT振り返り
-日次・週次・月次で「Keep / Problem / Try」を整理し、行動の改善サイクルを回せます。
+HabitSparkは、単にタスクを管理するのではなく、  
+**「振り返りを通じて行動を改善し、習慣を続ける」** ことを目的とした習慣化アプリです。
 
-### 🎯 フレキシブルな目標設定
-日次・週次・月次それぞれの階層で目標を管理できます。
+日々の行動を記録するだけでなく、  
+KPT（Keep / Problem / Try）による振り返りを通して改善サイクルを回し、  
+継続可能な習慣形成を支援します。
 
-### 🔮 未来の自分（Future Vision）
-長期的なビジョンを小さなステップに分解し、進捗を可視化します。
+また、「未来の自分」を定義し、理想像までのステップを可視化することで、  
+モチベーションを維持しながら目標達成へ進める設計になっています。
 
-### 📊 継続の可視化
-ストリーク表示やヒートマップにより、習慣の継続状況を直感的に把握できます。
+<img width="1400" height="418" alt="HabitSpark Overview" src="https://github.com/user-attachments/assets/2d324161-7355-4fd7-a4d9-c95d908addc8" />
 
-### 📱 iOSウィジェット
-ホーム画面から今日のタスクを素早く確認・完了できます。
-
----
-
-## 🛠 v1.1.0 アップデートのこだわり
-
-今回のアップデートでは、対面でのユーザーテスト（アジャイル開発）を通して、**ユーザーの心理的安全性を守る設計**に注力しました。
-
-### 🧠 過去の達成率を守る「二重日付管理」
-
-多くの習慣化アプリでは、月の途中で目標を追加すると過去の達成率が下がってしまう問題があります。
-
-HabitSparkでは以下の2つを分離しました：
-
-- **startDate**：統計計算の分母の基準日  
-- **targetDate**：UI上で表示する日付  
-
-これにより、過去にさかのぼって記録しても、統計データが壊れない設計を実現しています。
+<img width="1400" height="602" alt="HabitSpark Features" src="https://github.com/user-attachments/assets/98f43034-670b-4a04-9cac-1265ab48989c" />
 
 ---
 
-### 🔧 ウィジェットの描画安定化
+## ✨ Features
 
-WidgetKitの再描画時に発生する順序の不安定さに対して、**一意なID（UUID）によるソートを統一**。
+### 📝 KPT Reflection
+日次・週次・月次で Keep / Problem / Try を整理し、  
+行動の改善サイクルを自然に回せる振り返り機能を提供します。
 
-これにより、チェック操作時に発生していた一瞬の並び替わり（UXの違和感）を解消しました。
+### 🎯 Flexible Goal Management
+日次・週次・月次の階層ごとに目標を柔軟に設定・管理できます。
+
+### 🔮 Future Vision
+理想の姿である「未来の自分」を定義し、  
+そこへ至るまでの道のりを小さなステップに分解して可視化します。
+
+### 📊 Progress Visualization
+ストリーク表示やヒートマップにより、  
+習慣の継続状況を直感的に把握できます。
+
+### 📱 Home Widget
+WidgetKitにより、ホーム画面から今日のタスク確認・完了が可能です。
 
 ---
 
-## 🏗 技術スタック
+## 💡 Technical Highlights
 
-- **Language**: Swift 5.9+
+### 🧠 Dual-Date Data Design
+
+多くの習慣化アプリでは、月の途中で目標を追加すると、  
+過去の達成率まで下がってしまう課題があります。
+
+HabitSparkでは以下の2つの日付を分離して管理しています。
+
+- **startDate**：統計計算に用いる基準日
+- **targetDate**：UI上で表示する対象日
+
+これにより、月途中・過去追加でも既存の統計データを壊さず、  
+ユーザーの達成履歴を正しく保持できる設計を実現しました。
+
+---
+
+### 🔧 Stable Widget Rendering
+
+WidgetKitの再描画時に発生する並び順の不安定さに対し、  
+一意なID（UUID）を基準にソート処理を統一しました。
+
+これにより、チェック操作時に一瞬だけ並び順が入れ替わる  
+視覚的な違和感を解消し、ウィジェットの操作体験を改善しました。
+
+---
+
+## 🏗 Tech Stack
+
+- **Language**: Swift 5.10+
 - **Framework**: SwiftUI
 - **Architecture**: MVVM
-- **Database**: UserDefaults / Codable（ファイルベース）
+- **Persistence**: UserDefaults / Codable
 - **Widget**: WidgetKit
-- **Ad**: Google Mobile Ads SDK（AdMob）
-- **Privacy**: App Tracking Transparency（ATT）対応
+- **Ads**: Google Mobile Ads SDK (AdMob)
+- **Privacy**: App Tracking Transparency (ATT)
 
 ---
 
-## 👤 開発者
+## 👤 My Role
 
-本プロジェクトは個人で開発しています。
+本プロジェクトは個人開発で行っており、以下を一貫して担当しました。
 
-- **企画・設計（PM / UX）**  
-  コンセプト設計・UX改善・振り返りフレームワーク設計
+- **企画 / 要件定義**  
+  コンセプト設計、機能設計、課題整理
 
-- **iOS開発**  
-  SwiftUIによる実装・アーキテクチャ設計（MVVM）
+- **UX / 情報設計**  
+  KPT導線設計、継続しやすい導線設計、改善体験の設計
 
-- **データ設計 / ロジック設計**  
-  習慣化を継続させるためのデータ構造・アルゴリズム設計
+- **iOSアプリ開発**  
+  SwiftUIによる実装、MVVMアーキテクチャ設計
+
+- **データ / ロジック設計**  
+  習慣継続を支えるデータ構造・統計ロジック設計
+
+- **改善 / ユーザーテスト**  
+  実利用ベースでの観察・改善サイクル運用
 
 ---
 
-## 📄 ライセンス
+## 📄 License
 
 MIT License
-
----
