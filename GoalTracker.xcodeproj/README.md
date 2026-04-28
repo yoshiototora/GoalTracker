@@ -1,60 +1,101 @@
-# HabitSpark - 振り返りが、次の行動になる習慣化アプリ
+# HabitSpark
+「やりたい」を、明日への活力に。
 
-KPT法（Keep / Problem / Try）を取り入れ、
-「振り返り」で終わらせず、次の行動までつなげる
-習慣化・目標管理アプリです。
+📱 **App Store**
 
-ただ記録するだけでなく、
-「なぜ続かなかったのか」「次はどうするか」までを一貫して管理できます。
+[HabitSpark-振り返りで続くシンプル習慣化アプリ](https://apps.apple.com/app/habitspark-振り返りで続くシンプル習慣化アプリ/id6762178668)
 
----
-
-## 🚀 特徴
-
-- **KPTベースの振り返り**  
-  できたこと・課題・次のアクションを整理し、成長のサイクルを回します。
-
-- **ヒートマップ & カレンダー**  
-  日々の積み重ねを可視化し、継続をサポートします。
-
-- **ウィジェット対応**  
-  アプリを開かなくても、今日のタスクをすぐに確認できます。
-
-- **動的な通知**  
-  設定に応じてリマインドし、振り返りの習慣化を後押しします。
+HabitSparkは、KPT（Keep / Problem / Try）フレームワークを軸にした、振り返りと習慣化のためのiOSアプリケーションです。
 
 ---
 
-## 🛠 技術スタック
+## 🚀 アプリの概要
 
-- **Language**: Swift 5.x  
-- **UI Framework**: SwiftUI  
-- **Database**: CoreData（App GroupsによるWidget共有）  
-- **Ads**: Google Mobile Ads SDK（AdMob）  
-- **Architecture**: MVVM  
+ただタスクをこなすだけでなく、「振り返り」を通じて自分自身の行動を改善していくことを目的としています。
 
----
+「未来の自分」を定義し、そこに至るまでの道のりを視覚化することで、モチベーションを維持しながら目標達成をサポートします。
 
-## 📂 開発の背景
+<img width="1400" height="418" alt="image" src="https://github.com/user-attachments/assets/2d324161-7355-4fd7-a4d9-c95d908addc8" />
 
-「チュートリアルは終わったけれど、
-実際にどうやってアプリをリリースするのか分からない」
+<img width="1400" height="602" alt="image" src="https://github.com/user-attachments/assets/98f43034-670b-4a04-9cac-1265ab48989c" />
 
-そんな状態から、
-設計の分離（Fat Viewの脱却）やデータの永続化など、
-実践的な技術を取り入れて開発しました。
 
-開発プロセスはQiitaで連載しています。  
-👉 [Qiita記事はこちら](https://qiita.com/yoshiototora/items/c93ca9cdb46ea963d819)
 
 ---
 
-## 📱 App Store
+## ✨ 主な機能
 
-👉 [HabitSparkをダウンロード](https://apps.apple.com/jp/app/habitspark-%E6%8C%AF%E3%82%8A%E8%BF%94%E3%82%8A%E3%81%A7%E7%B6%9A%E3%81%8F%E3%82%B7%E3%83%B3%E3%83%97%E3%83%AB%E7%BF%92%E6%85%A3%E5%8C%96%E3%82%A2%E3%83%97%E3%83%AA/id6762178668)
+### 📝 KPT振り返り
+日次・週次・月次で「Keep / Problem / Try」を整理し、行動の改善サイクルを回せます。
+
+### 🎯 フレキシブルな目標設定
+日次・週次・月次それぞれの階層で目標を管理できます。
+
+### 🔮 未来の自分（Future Vision）
+長期的なビジョンを小さなステップに分解し、進捗を可視化します。
+
+### 📊 継続の可視化
+ストリーク表示やヒートマップにより、習慣の継続状況を直感的に把握できます。
+
+### 📱 iOSウィジェット
+ホーム画面から今日のタスクを素早く確認・完了できます。
 
 ---
 
-## 👤 Author
+## 🛠 v1.1.0 アップデートのこだわり
 
-yoshiototora
+今回のアップデートでは、対面でのユーザーテスト（アジャイル開発）を通して、**ユーザーの心理的安全性を守る設計**に注力しました。
+
+### 🧠 過去の達成率を守る「二重日付管理」
+
+多くの習慣化アプリでは、月の途中で目標を追加すると過去の達成率が下がってしまう問題があります。
+
+HabitSparkでは以下の2つを分離しました：
+
+- **startDate**：統計計算の分母の基準日  
+- **targetDate**：UI上で表示する日付  
+
+これにより、過去にさかのぼって記録しても、統計データが壊れない設計を実現しています。
+
+---
+
+### 🔧 ウィジェットの描画安定化
+
+WidgetKitの再描画時に発生する順序の不安定さに対して、**一意なID（UUID）によるソートを統一**。
+
+これにより、チェック操作時に発生していた一瞬の並び替わり（UXの違和感）を解消しました。
+
+---
+
+## 🏗 技術スタック
+
+- **Language**: Swift 5.9+
+- **Framework**: SwiftUI
+- **Architecture**: MVVM
+- **Database**: UserDefaults / Codable（ファイルベース）
+- **Widget**: WidgetKit
+- **Ad**: Google Mobile Ads SDK（AdMob）
+- **Privacy**: App Tracking Transparency（ATT）対応
+
+---
+
+## 👥 開発チーム（Takadalab）
+
+本プロジェクトは3名のチームで開発しています。
+
+- **Project Manager / Researcher**  
+  企画・UXリサーチ・振り返りフレームワーク設計
+
+- **Developer（iOS）**  
+  実装・ロジック設計（本リポジトリのメインメンテナー）
+
+- **Engineer**  
+  インフラ・システム構成
+
+---
+
+## 📄 ライセンス
+
+MIT License
+
+---
