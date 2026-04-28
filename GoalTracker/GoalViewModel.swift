@@ -34,9 +34,9 @@ class GoalViewModel: ObservableObject {
     func monthKey(_ date: Date) -> String { return ymFormatter.string(from: date) }
     
     func getCustomWeekInfo(for date: Date) -> (key: String, dates: [Date]) {
-            var cal = Calendar.current
-            cal.firstWeekday = (appSettings.weeklyReflectionWeekday % 7) + 1 // 🌟 変更
-            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+        var cal = Calendar.current
+        cal.firstWeekday = (appSettings.weeklyReflectionWeekday % 7) + 1
+        let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
         guard let startOfWeek = cal.date(from: comps) else { return ("", []) }
         var targetWeekDates: [Date] = []
         for i in 0..<7 {
@@ -100,7 +100,6 @@ class GoalViewModel: ObservableObject {
         WidgetCenter.shared.reloadAllTimelines()
     }
     
-    // 🟢 修正：ホーム画面で編集したら、大元のカレンダーデータも絶対に書き換える（色が消えるのを防ぐ）
     func editTask(id: UUID, newTitle: String, newCategoryId: String, for date: Date) {
         var note = getNote(for: date)
         if let idx = note.tasks.firstIndex(where: { $0.id == id }) {
@@ -112,7 +111,6 @@ class GoalViewModel: ObservableObject {
             sortTasks(&note.tasks)
             coreData.saveDailyNote(note, for: dateKey(date))
             
-            // 日次目標由来のタスクなら、カレンダー側のデータも更新して上書きを阻止する
             if taskType == .dailyGoal {
                 var mData = getMonthData(for: date)
                 if let mIdx = mData.dailyGoals.firstIndex(where: { $0.title == oldTitle }) {
@@ -120,26 +118,17 @@ class GoalViewModel: ObservableObject {
                     mData.dailyGoals[mIdx].categoryId = newCategoryId
                     coreData.saveMonthData(mData, for: monthKey(date))
                 }
-// GoalViewModel.swift の editTask の中
-            
             } else if taskType == .tryCarryOver {
-                // 昨日のTry由来のタスクなら、大元のTryデータも更新する
                 let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
                 var prevNote = getNote(for: prevDate)
-                
-                // 🔴 変更前: let cleanTitle = oldTitle.replacingOccurrences(of: "昨日のTry: ", with: "")
-                // 🟢 変更後: 文字の削除処理をなくして、そのまま使う
                 let cleanTitle = oldTitle
                 
                 if let tIdx = prevNote.tryList.firstIndex(where: { $0.title == cleanTitle }) {
-                    // 🔴 変更前: prevNote.tryList[tIdx].title = newTitle.replacingOccurrences(of: "昨日のTry: ", with: "")
-                    // 🟢 変更後: こちらもそのまま使う
                     prevNote.tryList[tIdx].title = newTitle
                     prevNote.tryList[tIdx].categoryId = newCategoryId
                     coreData.saveDailyNote(prevNote, for: dateKey(prevDate))
                 }
             }
-            
             loadCachedData()
             WidgetCenter.shared.reloadAllTimelines()
         }
@@ -188,18 +177,12 @@ class GoalViewModel: ObservableObject {
         if Calendar.current.isDate(date, inSameDayAs: selectedDate) { currentMonthData = data }
     }
     func updateMonthlyGoals(_ goals: [Goal], field: GoalField, date: Date) {
-            var data = getMonthData(for: date)
-            if field == .monthly { data.monthlyGoals = goals } else if field == .weekly { data.weeklyGoals = goals } else { data.dailyGoals = goals }
-            coreData.saveMonthData(data, for: monthKey(date))
-            
-            // 🌟 修正：日次目標が変更された場合は、ヒートマップを即座に更新するために月全体を同期する
-            if field == .daily {
-                syncEntireMonth(for: date)
-            } else {
-                syncAll(for: date)
-            }
-            WidgetCenter.shared.reloadAllTimelines()
-        }
+        var data = getMonthData(for: date)
+        if field == .monthly { data.monthlyGoals = goals } else if field == .weekly { data.weeklyGoals = goals } else { data.dailyGoals = goals }
+        coreData.saveMonthData(data, for: monthKey(date))
+        if field == .daily { syncEntireMonth(for: date) } else { syncAll(for: date) }
+        WidgetCenter.shared.reloadAllTimelines()
+    }
     func updateMonthlyTryList(_ list: [Goal], date: Date) {
         var data = getMonthData(for: date); data.tryList = list
         coreData.saveMonthData(data, for: monthKey(date))
@@ -265,84 +248,82 @@ class GoalViewModel: ObservableObject {
         }
     }
     
-    // MARK: - 🟢 修正：双方向の絶対同期システム
-        func syncAll(for date: Date, shouldLoadCache: Bool = true) {
-            var note = getNote(for: date)
-            var monthData = getMonthData(for: date)
-            var isMonthChanged = false
+    // MARK: - 🟢 同期システム (開始日考慮)
+    func syncAll(for date: Date, shouldLoadCache: Bool = true) {
+        var note = getNote(for: date)
+        var monthData = getMonthData(for: date)
+        var isMonthChanged = false
+        
+        let targetDate = Calendar.current.startOfDay(for: date)
+        
+        // 開始日時点で有効な目標のみを対象とする
+        let validDailyTitles = monthData.dailyGoals
+            .filter { Calendar.current.startOfDay(for: $0.startDate) <= targetDate }
+            .map { $0.title }
             
-            let dailyGoalTitles = monthData.dailyGoals.map { $0.title }
-            let yesterdayTryGoals = getYesterdayTryGoals(for: date)
+        let yesterdayTryGoals = getYesterdayTryGoals(for: date)
+        let allTryTitles = yesterdayTryGoals.map { $0.title }
+        
+        // 有効でない目標はタスクから除去
+        note.tasks.removeAll { ($0.type == .dailyGoal && !validDailyTitles.contains($0.title)) || ($0.type == .tryCarryOver && !allTryTitles.contains($0.title)) }
+        
+        // 日次目標の同期
+        for (i, g) in monthData.dailyGoals.enumerated() {
+            if Calendar.current.startOfDay(for: g.startDate) > targetDate { continue }
             
-            // 変更後: 前置き文字をつけない
-            let allTryTitles = yesterdayTryGoals.map { $0.title }
-            
-            note.tasks.removeAll { ($0.type == .dailyGoal && !dailyGoalTitles.contains($0.title)) || ($0.type == .tryCarryOver && !allTryTitles.contains($0.title)) }
-            
-            // 日次目標の同期（色が勝手に消えないようにガード）
-            for (i, g) in monthData.dailyGoals.enumerated() {
-                if let idx = note.tasks.firstIndex(where: { $0.title == g.title && $0.type == .dailyGoal }) {
-                    // タスク側に色がついていて、カレンダー側がグレーなら、タスク側を正義としてカレンダーを更新！
-                    if note.tasks[idx].categoryId != "none" && g.categoryId == "none" {
-                        monthData.dailyGoals[i].categoryId = note.tasks[idx].categoryId
-                        isMonthChanged = true
-                    } else if g.categoryId != "none" {
-                        // カレンダー側に色がついていれば、それをタスクに反映
-                        note.tasks[idx].categoryId = g.categoryId
-                    }
-                } else {
-                    note.tasks.append(Task(title: g.title, type: .dailyGoal, categoryId: g.categoryId))
+            if let idx = note.tasks.firstIndex(where: { $0.title == g.title && $0.type == .dailyGoal }) {
+                if note.tasks[idx].categoryId != "none" && g.categoryId == "none" {
+                    monthData.dailyGoals[i].categoryId = note.tasks[idx].categoryId
+                    isMonthChanged = true
+                } else if g.categoryId != "none" {
+                    note.tasks[idx].categoryId = g.categoryId
                 }
-            }
-            
-            // Tryの同期
-            for tryGoal in yesterdayTryGoals {
-                let taskTitle = tryGoal.title
-                
-                if let idx = note.tasks.firstIndex(where: { $0.title == taskTitle && $0.type == .tryCarryOver }) {
-                    if tryGoal.categoryId != "none" { note.tasks[idx].categoryId = tryGoal.categoryId }
-                } else {
-                    note.tasks.append(Task(title: taskTitle, type: .tryCarryOver, categoryId: tryGoal.categoryId))
-                }
-            }
-            
-            // 変更があれば大元を保存
-            if isMonthChanged {
-                coreData.saveMonthData(monthData, for: monthKey(date))
-            }
-            
-            sortTasks(&note.tasks)
-            coreData.saveDailyNote(note, for: dateKey(date))
-            
-            // 週次目標の同期
-            var weekData = getWeekData(for: date)
-            let weeklyGoalTitles = monthData.weeklyGoals.map { $0.title }
-            weekData.goals.removeAll { !weeklyGoalTitles.contains($0.title) }
-            for t in monthData.weeklyGoals {
-                if let idx = weekData.goals.firstIndex(where: { $0.title == t.title }) {
-                    if t.categoryId != "none" { weekData.goals[idx].categoryId = t.categoryId }
-                } else {
-                    weekData.goals.append(Goal(title: t.title, categoryId: t.categoryId))
-                }
-            }
-            coreData.saveWeekData(weekData, for: getCustomWeekInfo(for: date).key)
-            
-            // 🌟 追加：無駄な再描画を防ぐための制御
-            if shouldLoadCache {
-                loadCachedData()
+            } else {
+                note.tasks.append(Task(title: g.title, type: .dailyGoal, categoryId: g.categoryId))
             }
         }
         
-        // 🌟 追加：月全体を同期するメソッド（ヒートマップ即時反映用）
-        func syncEntireMonth(for date: Date) {
-            let dates = getMonthDates(for: date)
-            for d in dates {
-                // キャッシュは更新せず、裏側でデータだけを綺麗に揃える
-                syncAll(for: d, shouldLoadCache: false)
+        // Tryの同期
+        for tryGoal in yesterdayTryGoals {
+            let taskTitle = tryGoal.title
+            if let idx = note.tasks.firstIndex(where: { $0.title == taskTitle && $0.type == .tryCarryOver }) {
+                if tryGoal.categoryId != "none" { note.tasks[idx].categoryId = tryGoal.categoryId }
+            } else {
+                note.tasks.append(Task(title: taskTitle, type: .tryCarryOver, categoryId: tryGoal.categoryId))
             }
-            // 全部の処理が終わったら一気に画面を更新
-            loadCachedData()
         }
+        
+        if isMonthChanged { coreData.saveMonthData(monthData, for: monthKey(date)) }
+        sortTasks(&note.tasks)
+        coreData.saveDailyNote(note, for: dateKey(date))
+        
+        // 週次目標の同期
+        var weekData = getWeekData(for: date)
+        let validWeeklyTitles = monthData.weeklyGoals
+            .filter { Calendar.current.startOfDay(for: $0.startDate) <= targetDate }
+            .map { $0.title }
+            
+        weekData.goals.removeAll { !validWeeklyTitles.contains($0.title) }
+        
+        for t in monthData.weeklyGoals {
+            if Calendar.current.startOfDay(for: t.startDate) > targetDate { continue }
+            
+            if let idx = weekData.goals.firstIndex(where: { $0.title == t.title }) {
+                if t.categoryId != "none" { weekData.goals[idx].categoryId = t.categoryId }
+            } else {
+                weekData.goals.append(Goal(title: t.title, categoryId: t.categoryId, startDate: t.startDate))
+            }
+        }
+        coreData.saveWeekData(weekData, for: getCustomWeekInfo(for: date).key)
+        
+        if shouldLoadCache { loadCachedData() }
+    }
+    
+    func syncEntireMonth(for date: Date) {
+        let dates = getMonthDates(for: date)
+        for d in dates { syncAll(for: d, shouldLoadCache: false) }
+        loadCachedData()
+    }
     
     // MARK: - Baton Support
     func getYesterdayTryList(for date: Date) -> [String] { return getNote(for: Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date).tryList.map { $0.title } }
@@ -369,19 +350,43 @@ class GoalViewModel: ObservableObject {
     func saveSettings() { if let encoded = try? JSONEncoder().encode(appSettings) { UserDefaults.standard.set(encoded, forKey: settingsKey) }; refreshNotifications(); objectWillChange.send() }
     func refreshNotifications() { let today = Date(); let note = getNote(for: today); let hasUncompleted = note.tasks.isEmpty ? true : note.tasks.contains(where: { !$0.isCompleted }); NotificationService.shared.updateNotifications(settings: appSettings, currentStreak: currentDailyStreak, todayTasks: note.tasks, yesterdayTrys: getYesterdayTryList(for: today), hasUncompletedTasks: hasUncompleted) }
 
-    // MARK: - Individual Goal Progress
-    func getDailyGoalProgress(title: String, for date: Date, isWeekly: Bool) -> String {
-        let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date); let validDates = getValidDates(from: dates); guard !validDates.isEmpty else { return "-/-" }
-        let completed = validDates.filter { d in getNote(for: d).tasks.contains(where: { $0.title == title && $0.type == .dailyGoal && $0.isCompleted }) }.count
+    // MARK: - Individual Goal Progress (開始日考慮)
+    func getDailyGoalProgress(goal: Goal, for date: Date, isWeekly: Bool) -> String {
+        let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date)
+        let validDates = getValidDates(from: dates).filter {
+            Calendar.current.startOfDay(for: $0) >= Calendar.current.startOfDay(for: goal.startDate)
+        }
+        guard !validDates.isEmpty else { return "-/-" }
+        let completed = validDates.filter { d in getNote(for: d).tasks.contains(where: { $0.title == goal.title && $0.type == .dailyGoal && $0.isCompleted }) }.count
         let rate = Int((Double(completed) / Double(validDates.count)) * 100); return "\(completed)/\(validDates.count)回 (\(rate)%)"
     }
-    func getWeeklyGoalProgress(title: String, for monthDate: Date) -> String {
-        let validDates = getValidDates(from: getMonthDates(for: monthDate)); let validKeysForMonth = getValidWeekKeys(for: monthDate)
+    
+    func getWeeklyGoalProgress(goal: Goal, for monthDate: Date) -> String {
+        let validDates = getValidDates(from: getMonthDates(for: monthDate)).filter {
+            Calendar.current.startOfDay(for: $0) >= Calendar.current.startOfDay(for: goal.startDate)
+        }
+        let validKeysForMonth = getValidWeekKeys(for: monthDate)
         var passedWeekKeys = Set<String>(); for d in validDates { let key = getCustomWeekInfo(for: d).key; if validKeysForMonth.contains(key) { passedWeekKeys.insert(key) } }
         guard !passedWeekKeys.isEmpty else { return "-/-" }
-        let completed = passedWeekKeys.filter { key in coreData.fetchWeekData(for: key).goals.contains(where: { $0.title == title && $0.isCompleted }) }.count
+        let completed = passedWeekKeys.filter { key in coreData.fetchWeekData(for: key).goals.contains(where: { $0.title == goal.title && $0.isCompleted }) }.count
         let rate = Int((Double(completed) / Double(passedWeekKeys.count)) * 100); return "\(completed)/\(passedWeekKeys.count)週 (\(rate)%)"
     }
-    func getDailyGoalsProgressStats(for date: Date, isWeekly: Bool) -> [(String, String)] { return getMonthData(for: date).dailyGoals.map { ($0.title, getDailyGoalProgress(title: $0.title, for: date, isWeekly: isWeekly)) } }
-    func getWeeklyGoalsProgressStats(for date: Date) -> [(String, String)] { return getMonthData(for: date).weeklyGoals.map { ($0.title, getWeeklyGoalProgress(title: $0.title, for: date)) } }
+    
+    func getDailyGoalsProgressStats(for date: Date, isWeekly: Bool) -> [(String, String)] {
+        let df = DateFormatter(); df.dateFormat = "M/d"
+        let targetDate = Calendar.current.startOfDay(for: date)
+        return getMonthData(for: date).dailyGoals
+            .filter { Calendar.current.startOfDay(for: $0.startDate) <= targetDate }
+            .map { goal in
+                let datePrefix = goal.startDate > Date.distantPast ? "\(df.string(from: goal.startDate))〜 " : ""
+                return ("\(datePrefix)\(goal.title)", getDailyGoalProgress(goal: goal, for: date, isWeekly: isWeekly))
+            }
+    }
+    
+    func getWeeklyGoalsProgressStats(for date: Date) -> [(String, String)] {
+        let targetDate = Calendar.current.startOfDay(for: date)
+        return getMonthData(for: date).weeklyGoals
+            .filter { Calendar.current.startOfDay(for: $0.startDate) <= targetDate }
+            .map { ($0.title, getWeeklyGoalProgress(goal: $0, for: date)) }
+    }
 }

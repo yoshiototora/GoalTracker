@@ -104,17 +104,19 @@ struct Goal: Identifiable, Equatable, Codable {
     var title: String
     var isCompleted: Bool
     var categoryId: String
-    
-    init(id: UUID = UUID(), title: String, isCompleted: Bool = false, categoryId: String = "none") {
+    var startDate: Date // 🌟 追加
+
+    // initにstartDateを追加（デフォルトは現在時刻）
+    init(id: UUID = UUID(), title: String, isCompleted: Bool = false, categoryId: String = "none", startDate: Date = Date()) {
         self.id = id
         self.title = title
         self.isCompleted = isCompleted
         self.categoryId = categoryId
+        self.startDate = startDate
     }
     
-    // 🟢 追加：古いGoalデータも安全に読み込む処理
     enum CodingKeys: String, CodingKey {
-        case id, title, isCompleted, categoryId
+        case id, title, isCompleted, categoryId, startDate // 🌟 追加
     }
     
     init(from decoder: Decoder) throws {
@@ -123,6 +125,8 @@ struct Goal: Identifiable, Equatable, Codable {
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
         isCompleted = try container.decodeIfPresent(Bool.self, forKey: .isCompleted) ?? false
         categoryId = try container.decodeIfPresent(String.self, forKey: .categoryId) ?? "none"
+        // 🌟 古いデータがクラッシュしないよう、無ければ過去の日付を割り当てる
+        startDate = try container.decodeIfPresent(Date.self, forKey: .startDate) ?? Date.distantPast
     }
 }
 

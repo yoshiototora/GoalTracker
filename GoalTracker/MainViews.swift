@@ -10,7 +10,6 @@ struct HomeView: View {
     @AppStorage("goalTutorialStep") var tutorialStep = 0
     @State private var editingTask: Task? = nil
     
-    // ヒント表示用の状態管理
     @AppStorage("showHomeHint") private var showHomeHint = true
     @AppStorage("hasCompletedMainTutorial") private var hasCompletedTutorial = false
     
@@ -24,7 +23,7 @@ struct HomeView: View {
                 if hasCompletedTutorial {
                     InlineHintCard(
                         title: "今日のタスクをこなそう",
-                        message: "カレンダーで設定した「日次目標」と、振り返りで決めた「Try」がここに並びます。完了したらタップ！\n💡 タスクを左にスワイプすると「編集・削除」ができます。",
+                        message: "カレンダーで設定した「日次目標」と、振り返りで決めた「Try」がここに並びます。完了したらタップ！\n💡 タスクを左にスワイプすると編集ができます。削除できるのは追加した「今日やること」のみです。日次・週次目標はカレンダー画面から削除してください。",
                         isShowing: $showHomeHint
                     )
                 }
@@ -91,7 +90,6 @@ struct HomeView: View {
                                             }
                                         } label: { Image(systemName: "trash") }
                                     }
-                                    // 全てのタスクで編集が行えるように変更
                                     Button { editingTask = task } label: { Image(systemName: "pencil") }.tint(.orange)
                                 }
                             }
@@ -167,7 +165,6 @@ struct ReflectionView: View {
     @State private var reflectionType = 0
     @State private var showYearlyAnimation = false
     
-    // ヒント管理
     @AppStorage("showReflectionHint") private var showReflectionHint = true
     @AppStorage("hasCompletedMainTutorial") private var hasCompletedTutorial = false
     @AppStorage("showWeeklyHint") private var showWeeklyHint = true
@@ -184,11 +181,9 @@ struct ReflectionView: View {
     
     private var shouldShowWeeklyReflection: Bool {
         if isBeforeStart { return false }
-        
         let cal = Calendar.current
         let isTargetWeekday = cal.component(.weekday, from: viewModel.selectedDate) == viewModel.appSettings.weeklyReflectionWeekday
         guard isTargetWeekday else { return false }
-        
         let weekData = viewModel.getWeekData(for: viewModel.selectedDate)
         let hasReflection = !weekData.keep.isEmpty || !weekData.problem.isEmpty || !weekData.reflection.isEmpty || !weekData.tryList.isEmpty
         return !hasReflection
@@ -201,7 +196,6 @@ struct ReflectionView: View {
         let nextDay = cal.date(byAdding: .day, value: 1, to: date) ?? date
         let isLastDayOfMonth = cal.component(.month, from: date) != cal.component(.month, from: nextDay)
         guard isLastDayOfMonth else { return false }
-        
         let monthDates = viewModel.getMonthDates(for: viewModel.selectedDate)
         let hasAnyActivity = monthDates.contains { !viewModel.getNote(for: $0).tasks.isEmpty }
         let hasLastMonthTry = !viewModel.getLastMonthlyTryList(for: viewModel.selectedDate).isEmpty
@@ -210,16 +204,12 @@ struct ReflectionView: View {
     
     private var shouldShowLastWeekInMonthly: Bool {
         if isBeforeStart { return false }
-        
         let cal = Calendar.current
         let date = viewModel.selectedDate
-        
         let nextDay = cal.date(byAdding: .day, value: 1, to: date) ?? date
         let isLastDayOfMonth = cal.component(.month, from: date) != cal.component(.month, from: nextDay)
-        
         let isTargetWeekday = cal.component(.weekday, from: date) == viewModel.appSettings.weeklyReflectionWeekday
         guard isLastDayOfMonth && !isTargetWeekday else { return false }
-        
         let lastWeekDate = cal.date(byAdding: .day, value: -7, to: date) ?? date
         let lastWeekData = viewModel.getWeekData(for: lastWeekDate)
         let hasReflection = !lastWeekData.keep.isEmpty || !lastWeekData.problem.isEmpty || !lastWeekData.reflection.isEmpty || !lastWeekData.tryList.isEmpty
@@ -332,6 +322,8 @@ struct ReflectionView: View {
         let nextMonthData = viewModel.getMonthData(for: nextMonthDate)
         let weekData = viewModel.currentWeekData
         
+        let targetRefDate = Calendar.current.startOfDay(for: viewModel.selectedDate)
+        
         ScrollView {
             VStack(spacing: 15) {
                 if hasCompletedTutorial {
@@ -358,7 +350,16 @@ struct ReflectionView: View {
                         }
                     }
                     
-                    GoalListSection(title: "今月の目標チェック", iconColor: .blue, goals: monthData.monthlyGoals, viewModel: viewModel, showCheckboxes: true, templates: monthlyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .monthly, date: viewModel.selectedDate) })
+                    GoalListSection(
+                        title: "今月の目標チェック",
+                        iconColor: .blue,
+                        goals: monthData.monthlyGoals.filter { Calendar.current.startOfDay(for: $0.startDate) <= targetRefDate },
+                        viewModel: viewModel,
+                        showCheckboxes: true,
+                        templates: monthlyTemplates,
+                        onUpdate: { viewModel.updateMonthlyGoals($0, field: .monthly, date: viewModel.selectedDate) }
+                    )
+                    
                     TextEditorView(title: "今月のKeep", text: Binding(get: { monthData.keep }, set: { viewModel.updateMonthlyText($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：1ヶ月間、毎日5分の片付けを継続できた")
                     TextEditorView(title: "今月のProblem", text: Binding(get: { monthData.problem }, set: { viewModel.updateMonthlyText($0, field: .problem, date: viewModel.selectedDate) }), placeholder: "例：月の後半はモチベーションが下がってしまった")
                     GoalListSection(title: "来月のTry", iconColor: .blue, goals: viewModel.currentMonthData.tryList, viewModel: viewModel, showCheckboxes: false, templates: [], placeholder: "できなかったことに対するネクストアクション", onUpdate: { viewModel.updateMonthlyTryList($0, date: viewModel.selectedDate) })
@@ -503,6 +504,7 @@ struct CalendarPage: View {
     var body: some View {
         let referenceDate = Calendar.current.isDate(displayDate, equalTo: viewModel.selectedDate, toGranularity: .month) ? viewModel.selectedDate : displayDate
         let monthData = viewModel.getMonthData(for: displayDate)
+        let targetRefDate = Calendar.current.startOfDay(for: referenceDate)
         
         ScrollView {
             VStack(spacing: 15) {
@@ -533,11 +535,40 @@ struct CalendarPage: View {
                 
                 VStack(spacing: 10) {
                     if tutorialStep == 1 { TutorialBubble(text: "まずは「今月の目標」を立てましょう\n例：体重を1kg落とす", step: $tutorialStep) }
-                    GoalListSection(title: "\(viewModel.getMonthlyTitle(for: displayDate))の月次目標", iconColor: .blue, goals: monthData.monthlyGoals, viewModel: viewModel, showCheckboxes: false, templates: monthlyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .monthly, date: displayDate) }, onCopy: { copyPrev(field: .monthly, date: displayDate) })
+                    GoalListSection(
+                        title: "\(viewModel.getMonthlyTitle(for: displayDate))の月次目標",
+                        iconColor: .blue,
+                        goals: monthData.monthlyGoals.filter { Calendar.current.startOfDay(for: $0.startDate) <= targetRefDate },
+                        viewModel: viewModel,
+                        showCheckboxes: false,
+                        templates: monthlyTemplates,
+                        onUpdate: { viewModel.updateMonthlyGoals($0, field: .monthly, date: displayDate) },
+                        onCopy: { copyPrev(field: .monthly, date: displayDate) }
+                    )
+                    
                     if tutorialStep == 2 { TutorialBubble(text: "次に、月次目標を達成するための「今週の目標」を決めます。", step: $tutorialStep) }
-                    GoalListSection(title: "\(viewModel.getMonthlyTitle(for: displayDate))の週次目標", iconColor: .orange, goals: monthData.weeklyGoals, viewModel: viewModel, showCheckboxes: false, templates: weeklyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .weekly, date: displayDate) }, onCopy: { copyPrev(field: .weekly, date: displayDate) })
+                    GoalListSection(
+                        title: "\(viewModel.getMonthlyTitle(for: displayDate))の週次目標",
+                        iconColor: .orange,
+                        goals: monthData.weeklyGoals.filter { Calendar.current.startOfDay(for: $0.startDate) <= targetRefDate },
+                        viewModel: viewModel,
+                        showCheckboxes: false,
+                        templates: weeklyTemplates,
+                        onUpdate: { viewModel.updateMonthlyGoals($0, field: .weekly, date: displayDate) },
+                        onCopy: { copyPrev(field: .weekly, date: displayDate) }
+                    )
+                    
                     if tutorialStep == 3 { TutorialBubble(text: "最後に、毎日やるべき「日次目標」を決めます。", step: $tutorialStep, isLast: true) }
-                    GoalListSection(title: "\(viewModel.getMonthlyTitle(for: displayDate))の日次目標", iconColor: .green, goals: monthData.dailyGoals, viewModel: viewModel, showCheckboxes: false, templates: dailyTemplates, onUpdate: { viewModel.updateMonthlyGoals($0, field: .daily, date: displayDate) }, onCopy: { copyPrev(field: .daily, date: displayDate) })
+                    GoalListSection(
+                        title: "\(viewModel.getMonthlyTitle(for: displayDate))の日次目標",
+                        iconColor: .green,
+                        goals: monthData.dailyGoals.filter { Calendar.current.startOfDay(for: $0.startDate) <= targetRefDate },
+                        viewModel: viewModel,
+                        showCheckboxes: false,
+                        templates: dailyTemplates,
+                        onUpdate: { viewModel.updateMonthlyGoals($0, field: .daily, date: displayDate) },
+                        onCopy: { copyPrev(field: .daily, date: displayDate) }
+                    )
                 }.padding(.horizontal)
                 
                 CalendarGridView(viewModel: viewModel, displayDate: displayDate, selectedDate: $viewModel.selectedDate, selectedTab: $selectedTab)
@@ -547,9 +578,25 @@ struct CalendarPage: View {
     }
     
     func copyPrev(field: GoalViewModel.GoalField, date: Date) {
-        let prevDate = Calendar.current.date(byAdding: .month, value: -1, to: date) ?? date; let prevData = viewModel.getMonthData(for: prevDate); var newGoals = [Goal](); if field == .monthly { newGoals = prevData.monthlyGoals } else if field == .weekly { newGoals = prevData.weeklyGoals } else { newGoals = prevData.dailyGoals }
-        let currentData = viewModel.getMonthData(for: date); var currentGoals = field == .monthly ? currentData.monthlyGoals : (field == .weekly ? currentData.weeklyGoals : currentData.dailyGoals)
-        let existingTitles = currentGoals.map { $0.title }; for g in newGoals { if !existingTitles.contains(g.title) { currentGoals.append(Goal(title: g.title, categoryId: g.categoryId)) } }; viewModel.updateMonthlyGoals(currentGoals, field: field, date: date); viewModel.syncAll(for: viewModel.selectedDate)
+        let prevDate = Calendar.current.date(byAdding: .month, value: -1, to: date) ?? date
+        let prevData = viewModel.getMonthData(for: prevDate)
+        var newGoals = [Goal]()
+        if field == .monthly { newGoals = prevData.monthlyGoals }
+        else if field == .weekly { newGoals = prevData.weeklyGoals }
+        else { newGoals = prevData.dailyGoals }
+        
+        let currentData = viewModel.getMonthData(for: date)
+        var currentGoals = field == .monthly ? currentData.monthlyGoals : (field == .weekly ? currentData.weeklyGoals : currentData.dailyGoals)
+        
+        let existingTitles = currentGoals.map { $0.title }
+        for g in newGoals {
+            if !existingTitles.contains(g.title) {
+                // startDateも引き継ぐ
+                currentGoals.append(Goal(title: g.title, categoryId: g.categoryId, startDate: g.startDate))
+            }
+        }
+        viewModel.updateMonthlyGoals(currentGoals, field: field, date: date)
+        viewModel.syncAll(for: viewModel.selectedDate)
     }
 }
 
@@ -745,7 +792,16 @@ struct GoalListSection: View {
                     HStack(spacing: 10) {
                         if showCheckboxes { Image(systemName: goal.isCompleted ? "checkmark.circle.fill" : "circle").foregroundColor(goal.isCompleted ? .green : cat.color).font(.system(size: 20)).onTapGesture { var newGoals = goals; newGoals[index].isCompleted.toggle(); onUpdate(newGoals) } }
                         else { Rectangle().fill(cat.color).frame(width: 4, height: 20).cornerRadius(2) }
-                        Text(goal.title).font(.subheadline).strikethrough(showCheckboxes && goal.isCompleted).foregroundColor(.primary)
+                        
+                        HStack(spacing: 4) {
+                            if goal.startDate > Date.distantPast {
+                                Text(goal.startDate, format: .dateTime.month().day())
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.secondary)
+                            }
+                            Text(goal.title).font(.subheadline).strikethrough(showCheckboxes && goal.isCompleted).foregroundColor(.primary)
+                        }
+                        
                         Spacer()
                         Button(action: { editingGoal = goal }) { Image(systemName: "pencil").foregroundColor(.gray.opacity(0.8)).font(.system(size: 14)).padding(4) }.buttonStyle(PlainButtonStyle())
                         Button(action: { var newGoals = goals; newGoals.remove(at: index); onUpdate(newGoals) }) { Image(systemName: "xmark").foregroundColor(.gray.opacity(0.6)).font(.system(size: 12, weight: .bold)).padding(4) }.buttonStyle(PlainButtonStyle())
@@ -763,7 +819,16 @@ struct GoalListSection: View {
         .onAppear { if let first = categories.first { selectedCategoryId = first.id } }
         .sheet(item: $editingGoal) { goal in EditItemSheet(viewModel: viewModel, title: goal.title, categoryId: goal.categoryId) { newTitle, newCatId in if let idx = goals.firstIndex(where: { $0.id == goal.id }) { var newGoals = goals; newGoals[idx].title = newTitle; newGoals[idx].categoryId = newCatId; onUpdate(newGoals) } } }
     }
-    private func addGoal() { if !tempTitle.isEmpty { var n = goals; n.append(Goal(title: tempTitle, categoryId: selectedCategoryId)); onUpdate(n); tempTitle = ""; isAdding = false } }
+    private func addGoal() {
+        if !tempTitle.isEmpty {
+            var n = goals
+            // 新規目標には作成日(startDate)を持たせる
+            n.append(Goal(title: tempTitle, categoryId: selectedCategoryId, startDate: Date()))
+            onUpdate(n)
+            tempTitle = ""
+            isAdding = false
+        }
+    }
 }
 
 struct EditItemSheet: View {

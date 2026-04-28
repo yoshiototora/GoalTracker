@@ -45,9 +45,11 @@ struct GoalWidgetEntryView : View {
         
         // 未完了のタスクが優先的に上に来るように並び替え
         let displayTasks = entry.tasks.sorted {
-            if !$0.isCompleted && $1.isCompleted { return true }
-            if $0.isCompleted && !$1.isCompleted { return false }
-            return false
+            if $0.isCompleted != $1.isCompleted {
+                return !$0.isCompleted && $1.isCompleted
+            }
+            // チェック状態が同じならID順で固定
+            return $0.id.uuidString < $1.id.uuidString
         }
         
         switch family {
