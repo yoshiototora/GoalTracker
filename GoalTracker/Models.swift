@@ -104,29 +104,39 @@ struct Goal: Identifiable, Equatable, Codable {
     var title: String
     var isCompleted: Bool
     var categoryId: String
-    var startDate: Date // 🌟 追加
-
-    // initにstartDateを追加（デフォルトは現在時刻）
-    init(id: UUID = UUID(), title: String, isCompleted: Bool = false, categoryId: String = "none", startDate: Date = Date()) {
+    var startDate: Date    // 実際に作成した日時（達成率の計算基準）
+    var targetDate: Date   // いつの分として設定したか（UIの表示基準）
+    
+    // 新規作成時のイニシャライザ
+    init(id: UUID = UUID(), title: String, isCompleted: Bool = false, categoryId: String = "none", startDate: Date = Date(), targetDate: Date? = nil) {
         self.id = id
         self.title = title
         self.isCompleted = isCompleted
         self.categoryId = categoryId
         self.startDate = startDate
+        // targetDateの指定がなければ、作成日（startDate）と同じにする
+        self.targetDate = targetDate ?? startDate
     }
     
+    // 保存データと紐づけるためのキー
     enum CodingKeys: String, CodingKey {
-        case id, title, isCompleted, categoryId, startDate // 🌟 追加
+        case id, title, isCompleted, categoryId, startDate, targetDate
     }
     
+    // アプリ起動時に保存データを読み込む時の処理（後方互換性）
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
         isCompleted = try container.decodeIfPresent(Bool.self, forKey: .isCompleted) ?? false
         categoryId = try container.decodeIfPresent(String.self, forKey: .categoryId) ?? "none"
-        // 🌟 古いデータがクラッシュしないよう、無ければ過去の日付を割り当てる
-        startDate = try container.decodeIfPresent(Date.self, forKey: .startDate) ?? Date.distantPast
+        
+        // 🌟 古いデータ（v1.0.1以前）がクラッシュしないように過去の日付を入れる
+        let decodedStartDate = try container.decodeIfPresent(Date.self, forKey: .startDate) ?? Date.distantPast
+        startDate = decodedStartDate
+        
+        // 🌟 targetDateを持たない古いデータの場合は、自動的にstartDateと同じ値をセットする
+        targetDate = try container.decodeIfPresent(Date.self, forKey: .targetDate) ?? decodedStartDate
     }
 }
 
