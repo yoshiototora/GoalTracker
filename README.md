@@ -15,6 +15,17 @@ HabitSparkは、**KPT（Keep / Problem / Try）フレームワーク**を軸に�
 
 ---
 
+## Why HabitSpark?
+
+多くの習慣化アプリは「記録」はできても、  
+**「なぜ続かなかったか」を振り返り、次に活かす設計** までは十分ではないと感じていました。
+
+HabitSparkは、単なる行動記録ではなく、  
+KPT（Keep / Problem / Try）による振り返りを通じて、  
+**行動の改善まで支援する「続けられる習慣化」** を目指して設計しています。
+
+---
+
 ## 🚀 Overview
 
 HabitSparkは、単にタスクを管理するのではなく、  
@@ -36,22 +47,19 @@ KPT（Keep / Problem / Try）による振り返りを通して改善サイクル
 ## ✨ Features
 
 ### 📝 KPT Reflection
-日次・週次・月次で Keep / Problem / Try を整理し、  
-行動の改善サイクルを自然に回せる振り返り機能を提供します。
+Keep / Problem / Try による日次・週次・月次の振り返り支援
 
 ### 🎯 Flexible Goal Management
-日次・週次・月次の階層ごとに目標を柔軟に設定・管理できます。
+日次・週次・月次の階層ごとに柔軟に目標を管理
 
 ### 🔮 Future Vision
-理想の姿である「未来の自分」を定義し、  
-そこへ至るまでの道のりを小さなステップに分解して可視化します。
+理想の姿を定義し、未来の自分へのステップを可視化
 
 ### 📊 Progress Visualization
-ストリーク表示やヒートマップにより、  
-習慣の継続状況を直感的に把握できます。
+ストリーク表示・ヒートマップによる継続状況の可視化
 
 ### 📱 Home Widget
-WidgetKitにより、ホーム画面から今日のタスク確認・完了が可能です。
+ホーム画面から今日のタスク確認・完了が可能
 
 ---
 
@@ -91,6 +99,16 @@ WidgetKitの再描画時に発生する並び順の不安定さに対し、
 - **Widget**: WidgetKit
 - **Ads**: Google Mobile Ads SDK (AdMob)
 - **Privacy**: App Tracking Transparency (ATT)
+
+---
+
+## 📝 Related Articles
+
+設計・実装・改善の詳細は、以下の記事で公開しています。
+
+- [タスク管理が続かない自分へ。SwiftUIで「未来の自分」に近づく目標達成アプリを開発しました](https://qiita.com/yoshiototora/items/2f9f2d8f8f9f3d6f0b6f)
+- [未経験からKPT習慣化アプリをリリースするまでの全記録①｜Fat View脱却とデータ設計](https://qiita.com/yoshiototora/items/6f6d91a1d5a2e7f3c8ab)
+- [[個人開発] 友達の「横で操作する手元」を見て気づいた改善点。HabitSpark v1.1.0 爆速アジャイル開発記録](https://qiita.com/yoshiototora/items/55dd6320f6068788060e)
 
 ---
 
