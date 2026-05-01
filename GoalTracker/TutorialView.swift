@@ -26,7 +26,7 @@ struct TutorialView: View {
                 Text("まずは、習慣化したい\n「最初の目標」を決めましょう。")
                     .multilineTextAlignment(.center)
                 
-                TextField("例：毎日10分読書する", text: $firstGoalTitle)
+                TextField(LocalizedStringKey("例：毎日10分読書する"), text: $firstGoalTitle)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding(.horizontal, 40)
                     .padding(.top, 20)
@@ -129,7 +129,8 @@ struct TutorialView: View {
                 Button(action: {
                     withAnimation { step += 1 }
                 }) {
-                    Text((step == 0 && firstGoalTitle.isEmpty && hasCompletedTutorial) ? "スキップ" : "次へ")
+                    // 🌟 修正：三項演算子の結果をString(localized:)で囲む
+                    Text((step == 0 && firstGoalTitle.isEmpty && hasCompletedTutorial) ? String(localized: "スキップ") : String(localized: "次へ"))
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -146,7 +147,8 @@ struct TutorialView: View {
                     hasCompletedTutorial = true
                     isShowing = false
                 }) {
-                    Text(hasCompletedTutorial ? "閉じる" : "はじめる")
+                    // 🌟 修正：三項演算子の結果をString(localized:)で囲む
+                    Text(hasCompletedTutorial ? String(localized: "閉じる") : String(localized: "はじめる"))
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -171,7 +173,6 @@ struct TutorialView: View {
         
         if !firstGoalTitle.isEmpty {
             var currentMonthData = viewModel.getMonthData(for: today)
-            // 目標の開始日を今日に設定して追加
             currentMonthData.dailyGoals.append(Goal(title: firstGoalTitle, categoryId: "action", startDate: today))
             viewModel.updateMonthlyGoals(currentMonthData.dailyGoals, field: .daily, date: today)
         }

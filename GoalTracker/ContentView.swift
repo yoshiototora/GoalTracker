@@ -73,3 +73,8 @@ struct ContentView: View {
         }
     }
 }
+
+#Preview {
+    ContentView()
+        .environment(\.locale, .init(identifier: "en")) // 🌟これを追加するだけ！
+}

@@ -19,24 +19,18 @@ class GoalViewModel: ObservableObject {
     
     init() { loadSettings(); loadFutureVisions(); loadCachedData() }
     
-    // 既存の private func sortTasks(_ tasks: inout [Task]) を以下に置き換えます
     private func sortTasks(_ tasks: inout [Task], for date: Date) {
-        // カレンダーの並び順情報を取得
         let monthData = coreData.fetchMonthData(for: monthKey(date))
         let dailyGoalTitles = monthData.dailyGoals.map { $0.title }
-        
         let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
         let prevNote = coreData.fetchDailyNote(for: dateKey(prevDate))
         let yesterdayTryList = prevNote.tryList.map { $0.title }
         
         tasks.sort { t1, t2 in
-            // 1. まずタスクの種類でソート
             if t1.type != t2.type {
                 let priority: [TaskType: Int] = [.dailyGoal: 0, .tryCarryOver: 1, .normal: 2]
                 return (priority[t1.type] ?? 3) < (priority[t2.type] ?? 3)
             }
-            
-            // 2. 同じ種類なら、カレンダー設定や前日のTryの順番に合わせる
             if t1.type == .dailyGoal {
                 let idx1 = dailyGoalTitles.firstIndex(of: t1.title) ?? 999
                 let idx2 = dailyGoalTitles.firstIndex(of: t2.title) ?? 999
@@ -46,37 +40,42 @@ class GoalViewModel: ObservableObject {
                 let idx2 = yesterdayTryList.firstIndex(of: t2.title) ?? 999
                 if idx1 != idx2 { return idx1 < idx2 }
             }
-            
-            // 3. それ以外（通常のタスクなど）はID順
             return t1.id.uuidString < t2.id.uuidString
         }
     }
     
     // MARK: - Keys & Titles
-    func dateKey(_ date: Date) -> String { return ymdFormatter.string(from: date) }
-    func monthKey(_ date: Date) -> String { return ymFormatter.string(from: date) }
-    
-    func getCustomWeekInfo(for date: Date) -> (key: String, dates: [Date]) {
-        var cal = Calendar.current
-        cal.firstWeekday = (appSettings.weeklyReflectionWeekday % 7) + 1
-        let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-        guard let startOfWeek = cal.date(from: comps) else { return ("", []) }
-        var targetWeekDates: [Date] = []
-        for i in 0..<7 {
-            if let d = cal.date(byAdding: .day, value: i, to: startOfWeek) { targetWeekDates.append(d) }
+        func dateKey(_ date: Date) -> String { return ymdFormatter.string(from: date) }
+        func monthKey(_ date: Date) -> String { return ymFormatter.string(from: date) }
+        
+        func getCustomWeekInfo(for date: Date) -> (key: String, dates: [Date]) {
+            var cal = Calendar.current
+            cal.firstWeekday = (appSettings.weeklyReflectionWeekday % 7) + 1
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+            guard let startOfWeek = cal.date(from: comps) else { return ("", []) }
+            var targetWeekDates: [Date] = []
+            for i in 0..<7 {
+                if let d = cal.date(byAdding: .day, value: i, to: startOfWeek) { targetWeekDates.append(d) }
+            }
+            let year = comps.yearForWeekOfYear ?? cal.component(.year, from: date)
+            let week = comps.weekOfYear ?? 1
+            let key = String(format: "%04d-W%02d", year, week)
+            return (key, targetWeekDates)
         }
-        let year = comps.yearForWeekOfYear ?? cal.component(.year, from: date)
-        let week = comps.weekOfYear ?? 1
-        let key = String(format: "%04d-W%02d", year, week)
-        return (key, targetWeekDates)
-    }
-    
-    func getDailyTitle(for date: Date) -> String { let f = DateFormatter(); f.dateFormat = "yyyy年M月d日"; return f.string(from: date) }
-    func getWeeklyTitle(for date: Date) -> String {
-        let dates = getCustomWeekInfo(for: date).dates; guard let first = dates.first, let last = dates.last else { return "" }
-        let f = DateFormatter(); f.dateFormat = "M/d"; return "\(f.string(from: first)) 〜 \(f.string(from: last))"
-    }
-    func getMonthlyTitle(for date: Date) -> String { let f = DateFormatter(); f.dateFormat = "yyyy年M月"; return f.string(from: date) }
+        
+        // 🌟 以下の3つを「端末の言語に自動で合わせる」書き方に修正
+        func getDailyTitle(for date: Date) -> String {
+            return date.formatted(.dateTime.year().month().day())
+        }
+        
+        func getWeeklyTitle(for date: Date) -> String {
+            let dates = getCustomWeekInfo(for: date).dates; guard let first = dates.first, let last = dates.last else { return "" }
+            return "\(first.formatted(.dateTime.month().day())) - \(last.formatted(.dateTime.month().day()))"
+        }
+        
+        func getMonthlyTitle(for date: Date) -> String {
+            return date.formatted(.dateTime.year().month())
+        }
     
     func getNote(for date: Date) -> DailyNote {
         var note = coreData.fetchDailyNote(for: dateKey(date))
@@ -87,19 +86,18 @@ class GoalViewModel: ObservableObject {
     func getMonthData(for date: Date) -> MonthData { return coreData.fetchMonthData(for: monthKey(date)) }
     
     func loadCachedData() {
-            currentDailyNote = getNote(for: selectedDate)
-            currentWeekData = getWeekData(for: selectedDate)
-            currentMonthData = getMonthData(for: selectedDate)
-            
-            // 🌟 ここを修正：来月のデータを取得する際は「来月の1日」を基準にする
-            let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: selectedDate) ?? selectedDate
-            var comps = Calendar.current.dateComponents([.year, .month], from: nextMonth)
-            comps.day = 1
-            let firstDayOfNextMonth = Calendar.current.date(from: comps) ?? nextMonth
-            nextMonthData = getMonthData(for: firstDayOfNextMonth)
-            
-            currentDailyStreak = calculateDailyStreak()
-        }
+        currentDailyNote = getNote(for: selectedDate)
+        currentWeekData = getWeekData(for: selectedDate)
+        currentMonthData = getMonthData(for: selectedDate)
+        
+        let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: selectedDate) ?? selectedDate
+        var comps = Calendar.current.dateComponents([.year, .month], from: nextMonth)
+        comps.day = 1
+        let firstDayOfNextMonth = Calendar.current.date(from: comps) ?? nextMonth
+        nextMonthData = getMonthData(for: firstDayOfNextMonth)
+        
+        currentDailyStreak = calculateDailyStreak()
+    }
     
     // MARK: - Tasks Updates
     func addTask(title: String, for date: Date) {
@@ -264,20 +262,20 @@ class GoalViewModel: ObservableObject {
     func getComparisonText(for date: Date, isWeekly: Bool) -> String {
         let targetDates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date); let validDates = getValidDates(from: targetDates)
         let isFuture = validDates.isEmpty; let isOngoing = validDates.count > 0 && validDates.count < targetDates.count
-        if isFuture { return "これからの目標✨" }
-        let target = isWeekly ? "先週" : "先月"
+        if isFuture { return String(localized: "これからの目標✨") }
+        let target = isWeekly ? String(localized: "先週") : String(localized: "先月")
         if isOngoing {
             let currentPace = isWeekly ? getWeeklyDailyAvgRate(for: date) : getMonthlyDailyAvgRate(for: date); let prevDate = Calendar.current.date(byAdding: isWeekly ? .day : .month, value: isWeekly ? -7 : -1, to: date) ?? date; let prevPace = isWeekly ? getWeeklyDailyAvgRate(for: prevDate) : getMonthlyDailyAvgRate(for: prevDate)
             let diff = Int(round((currentPace - prevPace) * 100))
-            if diff > 0 { return "\(target)より ＋\(diff)%ペース🔥" } else if diff < 0 { return "\(target)より \(diff)%ペース🏃" } else { return "\(target)と同じペース✨" }
+            if diff > 0 { return String(localized: "\(target)より ＋\(diff)%ペース🔥") } else if diff < 0 { return String(localized: "\(target)より \(diff)%ペース🏃") } else { return String(localized: "\(target)と同じペース✨") }
         } else {
             let currentRate = isWeekly ? getWeeklyTotalRate(for: date) : getMonthlyTotalRate(for: date); let prevDate = Calendar.current.date(byAdding: isWeekly ? .day : .month, value: isWeekly ? -7 : -1, to: date) ?? date; let prevRate = isWeekly ? getWeeklyTotalRate(for: prevDate) : getMonthlyTotalRate(for: prevDate)
             let diff = Int(round((currentRate - prevRate) * 100))
-            if diff > 0 { return "\(target)比 ＋\(diff)%🎉" } else if diff < 0 { return "\(target)比 \(diff)%📉" } else { return "\(target)と同じペース✨" }
+            if diff > 0 { return String(localized: "\(target)比 ＋\(diff)%🎉") } else if diff < 0 { return String(localized: "\(target)比 \(diff)%📉") } else { return String(localized: "\(target)と同じペース✨") }
         }
     }
     
-    // MARK: - 🟢 同期システム (開始日考慮)
+    // MARK: - 同期システム
     func syncAll(for date: Date, shouldLoadCache: Bool = true) {
         var note = getNote(for: date)
         var monthData = getMonthData(for: date)
@@ -285,7 +283,6 @@ class GoalViewModel: ObservableObject {
         
         let targetDate = Calendar.current.startOfDay(for: date)
         
-        // 開始日時点で有効な目標のみを対象とする
         let validDailyTitles = monthData.dailyGoals
             .filter { Calendar.current.startOfDay(for: $0.startDate) <= targetDate }
             .map { $0.title }
@@ -293,10 +290,8 @@ class GoalViewModel: ObservableObject {
         let yesterdayTryGoals = getYesterdayTryGoals(for: date)
         let allTryTitles = yesterdayTryGoals.map { $0.title }
         
-        // 有効でない目標はタスクから除去
         note.tasks.removeAll { ($0.type == .dailyGoal && !validDailyTitles.contains($0.title)) || ($0.type == .tryCarryOver && !allTryTitles.contains($0.title)) }
         
-        // 日次目標の同期
         for (i, g) in monthData.dailyGoals.enumerated() {
             if Calendar.current.startOfDay(for: g.startDate) > targetDate { continue }
             
@@ -312,7 +307,6 @@ class GoalViewModel: ObservableObject {
             }
         }
         
-        // Tryの同期
         for tryGoal in yesterdayTryGoals {
             let taskTitle = tryGoal.title
             if let idx = note.tasks.firstIndex(where: { $0.title == taskTitle && $0.type == .tryCarryOver }) {
@@ -326,7 +320,6 @@ class GoalViewModel: ObservableObject {
         sortTasks(&note.tasks, for: date)
         coreData.saveDailyNote(note, for: dateKey(date))
         
-        // 週次目標の同期
         var weekData = getWeekData(for: date)
         let validWeeklyTitles = monthData.weeklyGoals
             .filter { Calendar.current.startOfDay(for: $0.startDate) <= targetDate }
@@ -360,7 +353,7 @@ class GoalViewModel: ObservableObject {
     func getLastMonthlyTryList(for date: Date) -> [Goal] { let cal = Calendar.current; guard let firstDay = cal.date(from: cal.dateComponents([.year, .month], from: date)), let prevLast = cal.date(byAdding: .day, value: -1, to: firstDay) else { return [] }; return getMonthData(for: prevLast).tryList }
     func getPreviousWeekDate(from date: Date) -> Date { return Calendar.current.date(byAdding: .day, value: -7, to: date) ?? date }
     func getPreviousMonthDate(from date: Date) -> Date { let cal = Calendar.current; guard let first = cal.date(from: cal.dateComponents([.year, .month], from: date)) else { return date }; return cal.date(byAdding: .day, value: -1, to: first) ?? date }
-    func getCategory(id: String) -> CategoryItem { return appSettings.categories.first(where: { $0.id == id }) ?? CategoryItem(id: "none", name: "指定なし", colorName: "gray") }
+    func getCategory(id: String) -> CategoryItem { return appSettings.categories.first(where: { $0.id == id }) ?? CategoryItem(id: "none", name: String(localized: "指定なし"), colorName: "gray") }
     func getYesterdayTryGoals(for date: Date) -> [Goal] { return getNote(for: Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date).tryList }
     
     // MARK: - Future Vision
@@ -379,7 +372,7 @@ class GoalViewModel: ObservableObject {
     func saveSettings() { if let encoded = try? JSONEncoder().encode(appSettings) { UserDefaults.standard.set(encoded, forKey: settingsKey) }; refreshNotifications(); objectWillChange.send() }
     func refreshNotifications() { let today = Date(); let note = getNote(for: today); let hasUncompleted = note.tasks.isEmpty ? true : note.tasks.contains(where: { !$0.isCompleted }); NotificationService.shared.updateNotifications(settings: appSettings, currentStreak: currentDailyStreak, todayTasks: note.tasks, yesterdayTrys: getYesterdayTryList(for: today), hasUncompletedTasks: hasUncompleted) }
 
-    // MARK: - Individual Goal Progress (開始日考慮)
+    // MARK: - Individual Goal Progress
     func getDailyGoalProgress(goal: Goal, for date: Date, isWeekly: Bool) -> String {
         let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date)
         let validDates = getValidDates(from: dates).filter {
@@ -387,7 +380,7 @@ class GoalViewModel: ObservableObject {
         }
         guard !validDates.isEmpty else { return "-/-" }
         let completed = validDates.filter { d in getNote(for: d).tasks.contains(where: { $0.title == goal.title && $0.type == .dailyGoal && $0.isCompleted }) }.count
-        let rate = Int((Double(completed) / Double(validDates.count)) * 100); return "\(completed)/\(validDates.count)回 (\(rate)%)"
+        let rate = Int((Double(completed) / Double(validDates.count)) * 100); return String(localized: "\(completed)/\(validDates.count)回 (\(rate)%)")
     }
     
     func getWeeklyGoalProgress(goal: Goal, for monthDate: Date) -> String {
@@ -398,7 +391,7 @@ class GoalViewModel: ObservableObject {
         var passedWeekKeys = Set<String>(); for d in validDates { let key = getCustomWeekInfo(for: d).key; if validKeysForMonth.contains(key) { passedWeekKeys.insert(key) } }
         guard !passedWeekKeys.isEmpty else { return "-/-" }
         let completed = passedWeekKeys.filter { key in coreData.fetchWeekData(for: key).goals.contains(where: { $0.title == goal.title && $0.isCompleted }) }.count
-        let rate = Int((Double(completed) / Double(passedWeekKeys.count)) * 100); return "\(completed)/\(passedWeekKeys.count)週 (\(rate)%)"
+        let rate = Int((Double(completed) / Double(passedWeekKeys.count)) * 100); return String(localized: "\(completed)/\(passedWeekKeys.count)週 (\(rate)%)")
     }
     
     func getDailyGoalsProgressStats(for date: Date, isWeekly: Bool) -> [(String, String)] {

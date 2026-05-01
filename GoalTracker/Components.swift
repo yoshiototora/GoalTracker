@@ -7,7 +7,7 @@ extension View {
 }
 
 struct TextEditorView: View {
-    let title: String; @Binding var text: String; var minHeight: CGFloat = 100; var placeholder: String = "入力..."
+    let title: LocalizedStringKey; @Binding var text: String; var minHeight: CGFloat = 100; var placeholder: LocalizedStringKey = "入力..."
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.caption).bold().foregroundColor(.secondary)
@@ -23,7 +23,7 @@ struct TextEditorView: View {
 }
 
 struct ReflectionAchievementCard: View {
-    let title: String; let rate1: Double; let rate2: Double?; let rate3: Double?; let color2: Color; let color3: Color
+    let title: LocalizedStringKey; let rate1: Double; let rate2: Double?; let rate3: Double?; let color2: Color; let color3: Color
     let comparisonText: String?; let totalDoneCount: Int; let tryDoneCount: Int
     
     var body: some View {
@@ -36,7 +36,7 @@ struct ReflectionAchievementCard: View {
                     Text(title).font(.subheadline).foregroundColor(.secondary).bold()
                     Text("\(Int(total * 100))%").font(.system(size: 44, weight: .black, design: .rounded))
                     if let trend = comparisonText {
-                        let isPositive = trend.contains("＋")
+                        let isPositive = trend.contains("＋") || trend.contains("+")
                         Text(trend).font(.caption.bold()).foregroundColor(isPositive ? .orange : .secondary).padding(.horizontal, 10).padding(.vertical, 4).background(isPositive ? Color.orange.opacity(0.1) : Color.gray.opacity(0.1)).cornerRadius(20).lineLimit(1).minimumScaleFactor(0.8)
                     }
                 }
@@ -55,14 +55,14 @@ struct ReflectionAchievementCard: View {
                 Divider().frame(height: 30)
                 VStack(alignment: .leading) { Text("Tryの実行").font(.caption2).foregroundColor(.secondary); Text("\(tryDoneCount)回").font(.headline).bold().foregroundColor(.blue) }
                 Spacer()
-                Text(total >= 0.8 ? "最高のペース" : (total >= 0.5 ? "いい調子です" : "一歩ずつ進もう")).font(.caption2.bold()).foregroundColor(.secondary).padding(.horizontal, 10).padding(.vertical, 6).background(Color(.systemGray6)).cornerRadius(8)
+                Text(total >= 0.8 ? String(localized: "最高のペース") : (total >= 0.5 ? String(localized: "いい調子です") : String(localized: "一歩ずつ進もう"))).font(.caption2.bold()).foregroundColor(.secondary).padding(.horizontal, 10).padding(.vertical, 6).background(Color(.systemGray6)).cornerRadius(8)
             }
         }.padding(20).background(Color(.systemBackground)).cornerRadius(20).shadow(color: .black.opacity(0.05), radius: 10, y: 5).padding(.horizontal)
     }
 }
 
 struct CompositeSummaryCard: View {
-    let title: String; let rate1: Double; let rate2: Double?; let rate3: Double?; let color2: Color; let color3: Color
+    let title: LocalizedStringKey; let rate1: Double; let rate2: Double?; let rate3: Double?; let color2: Color; let color3: Color
     let comparisonText: String?
     var body: some View {
         let count = (rate3 != nil ? 3.0 : (rate2 != nil ? 2.0 : 1.0))
@@ -72,7 +72,7 @@ struct CompositeSummaryCard: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(Int(total * 100))%").font(.system(size: 28, weight: .bold, design: .rounded))
-                    if let comp = comparisonText { let isPositive = comp.contains("＋"); Text(comp).font(.system(size: 10, weight: .bold)).foregroundColor(isPositive ? .orange : .secondary).lineLimit(1).minimumScaleFactor(0.7) }
+                    if let comp = comparisonText { let isPositive = comp.contains("＋") || comp.contains("+"); Text(comp).font(.system(size: 10, weight: .bold)).foregroundColor(isPositive ? .orange : .secondary).lineLimit(1).minimumScaleFactor(0.7) }
                 }
                 Spacer()
                 ZStack {
@@ -96,13 +96,12 @@ struct CalendarGridView: View {
     let displayDate: Date; @Binding var selectedDate: Date; @Binding var selectedTab: Int
     let cols = Array(repeating: GridItem(.flexible()), count: 7)
     
-    // 🌟 振り返り曜日を一番右にするため、表示上の開始曜日を「設定日 + 1」にする
     private var firstDisplayWeekday: Int {
         (viewModel.appSettings.weeklyReflectionWeekday % 7) + 1
     }
     
     var weekdays: [String] {
-        let all = ["日", "月", "火", "水", "木", "金", "土"]
+        let all = [String(localized: "日"), String(localized: "月"), String(localized: "火"), String(localized: "水"), String(localized: "木"), String(localized: "金"), String(localized: "土")]
         return (0..<7).map { all[(firstDisplayWeekday - 1 + $0) % 7] }
     }
     
@@ -114,7 +113,7 @@ struct CalendarGridView: View {
         VStack(spacing: 8) {
             HStack {
                 ForEach(weekdays, id: \.self) { day in
-                    Text(day).font(.caption).bold().foregroundColor(day == "日" ? .red : (day == "土" ? .blue : .secondary)).frame(maxWidth: .infinity)
+                    Text(day).font(.caption).bold().foregroundColor(day == String(localized: "日") ? .red : (day == String(localized: "土") ? .blue : .secondary)).frame(maxWidth: .infinity)
                 }
             }
             
@@ -167,7 +166,6 @@ struct CalendarGridView: View {
     
     func generateDays() -> [Date?] {
         var cal = Calendar.current
-        // 🌟 振り返り日の翌日を週の開始（1列目）として計算
         cal.firstWeekday = firstDisplayWeekday
         guard let start = cal.date(from: cal.dateComponents([.year, .month], from: displayDate)), let range = cal.range(of: .day, in: .month, for: start) else { return [] }
         
@@ -178,8 +176,9 @@ struct CalendarGridView: View {
         for i in 0..<range.count { if let d = cal.date(byAdding: .day, value: i, to: start) { days.append(d) } }; return days
     }
 }
+
 struct LuxuriousCompletionEffect: View {
-    let completedCount: Int; let messages = ["素晴らしい軌跡を誇りに思いましょう", "継続は力なり、ですね"]
+    let completedCount: Int; let messages = [String(localized: "素晴らしい軌跡を誇りに思いましょう"), String(localized: "継続は力なり、ですね")]
     @State private var showContent = false; @State private var opacities: [Double] = Array(repeating: 0.0, count: 42)
     var body: some View {
         ZStack {
@@ -199,15 +198,14 @@ struct StreakBadgeView: View {
     let streak: Int
     var body: some View {
         if streak > 0 {
-            HStack(spacing: 8) { Image(systemName: "flame.fill").foregroundColor(streak >= 7 ? .red : .orange); Text("\(streak)日連続達成中").font(.subheadline).bold().foregroundColor(streak >= 7 ? .red : .orange); if streak >= 30 { Image(systemName: "crown.fill").foregroundColor(.yellow) } else if streak >= 7 { Image(systemName: "medal.fill").foregroundColor(.yellow) } }.padding(.horizontal, 16).padding(.vertical, 10).frame(maxWidth: .infinity).background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1))).padding(.horizontal)
+            HStack(spacing: 8) { Image(systemName: "flame.fill").foregroundColor(streak >= 7 ? .red : .orange); Text(String(localized: "\(streak)日連続達成中")).font(.subheadline).bold().foregroundColor(streak >= 7 ? .red : .orange); if streak >= 30 { Image(systemName: "crown.fill").foregroundColor(.yellow) } else if streak >= 7 { Image(systemName: "medal.fill").foregroundColor(.yellow) } }.padding(.horizontal, 16).padding(.vertical, 10).frame(maxWidth: .infinity).background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1))).padding(.horizontal)
         }
     }
 }
-// Components.swift の末尾に追加
 
 struct InlineHintCard: View {
-    let title: String
-    let message: String
+    let title: LocalizedStringKey
+    let message: LocalizedStringKey
     @Binding var isShowing: Bool
     
     var body: some View {

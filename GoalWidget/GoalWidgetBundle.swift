@@ -1,10 +1,10 @@
 import WidgetKit
 import SwiftUI
 
-// MARK: - データ提供部分 (変更なし)
+// MARK: - データ提供部分
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), tasks: [Task(title: "目標を確認", isCompleted: false)])
+        SimpleEntry(date: Date(), tasks: [Task(title: String(localized: "目標を確認"), isCompleted: false)])
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
@@ -23,7 +23,6 @@ struct Provider: TimelineProvider {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let dateKey = formatter.string(from: Date())
-        // ※ダミーデータやプレビューでクラッシュしないよう、安全に呼び出します
         return CoreDataService.shared.fetchTasks(for: dateKey)
     }
 }
@@ -43,62 +42,48 @@ struct GoalWidgetEntryView : View {
         let completed = total - uncompleted.count
         let progress = total > 0 ? Double(completed) / Double(total) : 0.0
         
-        // 未完了のタスクが優先的に上に来るように並び替え
         let displayTasks = entry.tasks.sorted {
             if $0.isCompleted != $1.isCompleted {
                 return !$0.isCompleted && $1.isCompleted
             }
-            // チェック状態が同じならID順で固定
             return $0.id.uuidString < $1.id.uuidString
         }
         
         switch family {
         case .accessoryRectangular:
-                    // 🟢 修正版：3件まではすべて表示し、4件以上の時だけ「他○件」にまとめる
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "target").font(.system(size: 10))
-                            Text(uncompleted.isEmpty ? "完了！" : "未完了: \(uncompleted.count)")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .widgetAccentable()
-                        .padding(.bottom, 2)
-                        
-                        VStack(alignment: .leading, spacing: 1) {
-                            // 🌟 ここを 2 ではなく 3 に変更！
-                            if uncompleted.count <= 3 {
-                                // 未完了が3件以下なら、省略せずにすべて表示する
-                                ForEach(uncompleted) { task in
-                                    widgetTaskRow(task: task, fontSize: 11)
-                                }
-                            } else {
-                                // 未完了が4件以上なら、2件だけ表示して残りを「他○件」にする
-                                ForEach(uncompleted.prefix(2)) { task in
-                                    widgetTaskRow(task: task, fontSize: 11)
-                                }
-                                
-                                Text("...他 \(uncompleted.count - 2)件")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
-                                    .padding(.leading, 14)
-                            }
-                        }
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 4) {
+                    Image(systemName: "target").font(.system(size: 10))
+                    Text(uncompleted.isEmpty ? String(localized: "完了！") : String(localized: "未完了: \(uncompleted.count)"))
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .widgetAccentable()
+                .padding(.bottom, 2)
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    if uncompleted.count <= 3 {
+                        ForEach(uncompleted) { task in widgetTaskRow(task: task, fontSize: 11) }
+                    } else {
+                        ForEach(uncompleted.prefix(2)) { task in widgetTaskRow(task: task, fontSize: 11) }
+                        Text(String(localized: "...他 \(uncompleted.count - 2)件"))
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 14)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            
         case .accessoryInline:
-            // 🟢 ロック画面（一行）
-            Text(uncompleted.isEmpty ? "タスク完了" : "残り: \(uncompleted.count)件")
+            Text(uncompleted.isEmpty ? String(localized: "タスク完了") : String(localized: "残り: \(uncompleted.count)件"))
             
         case .systemMedium:
-            // 🟢 ホームウィジェット（中）：（変更なし）
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .bottom) {
                     Text(entry.date, format: .dateTime.month().day().weekday())
                         .font(.headline).bold()
                     Spacer()
-                    Text(uncompleted.isEmpty ? "すべて完了！" : "残り \(uncompleted.count)件")
+                    Text(uncompleted.isEmpty ? String(localized: "すべて完了！") : String(localized: "残り \(uncompleted.count)件"))
                         .font(.subheadline).bold()
                         .foregroundColor(uncompleted.isEmpty ? .green : .blue)
                 }
@@ -127,7 +112,7 @@ struct GoalWidgetEntryView : View {
                                 let nextTasks = Array(displayTasks.dropFirst(3))
                                 ForEach(nextTasks.prefix(3)) { task in widgetTaskRow(task: task) }
                                 if nextTasks.count > 3 {
-                                    Text("...他 \(nextTasks.count - 3)件").font(.system(size: 10)).foregroundColor(.secondary).padding(.leading, 14)
+                                    Text(String(localized: "...他 \(nextTasks.count - 3)件")).font(.system(size: 10)).foregroundColor(.secondary).padding(.leading, 14)
                                 }
                             }.frame(maxWidth: .infinity, alignment: .leading)
                         } else {
@@ -140,13 +125,12 @@ struct GoalWidgetEntryView : View {
             .padding(16)
             
         default:
-            // 🟢 ホームウィジェット（小）：入りきらない分は「...他○件」で表示
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(entry.date, format: .dateTime.day().weekday())
                             .font(.headline).bold()
-                        Text(uncompleted.isEmpty ? "完了！" : "残り \(uncompleted.count)件")
+                        Text(uncompleted.isEmpty ? String(localized: "完了！") : String(localized: "残り \(uncompleted.count)件"))
                             .font(.caption2).foregroundColor(.secondary)
                     }
                     Spacer()
@@ -168,16 +152,10 @@ struct GoalWidgetEntryView : View {
                 } else {
                     VStack(alignment: .leading, spacing: 5) {
                         if displayTasks.count <= 3 {
-                            // 3件以下ならすべて表示
-                            ForEach(displayTasks) { task in
-                                widgetTaskRow(task: task)
-                            }
+                            ForEach(displayTasks) { task in widgetTaskRow(task: task) }
                         } else {
-                            // 4件以上なら2件表示し、残りを「他○件」にする
-                            ForEach(displayTasks.prefix(2)) { task in
-                                widgetTaskRow(task: task)
-                            }
-                            Text("...他 \(displayTasks.count - 2)件")
+                            ForEach(displayTasks.prefix(2)) { task in widgetTaskRow(task: task) }
+                            Text(String(localized: "...他 \(displayTasks.count - 2)件"))
                                 .font(.system(size: 10))
                                 .foregroundColor(.secondary)
                                 .padding(.leading, 16)
@@ -190,25 +168,22 @@ struct GoalWidgetEntryView : View {
         }
     }
     
-    // 🌟 修正：フォントサイズを引数で受け取れるように変更
     @ViewBuilder
-        private func widgetTaskRow(task: Task, fontSize: CGFloat = 11) -> some View {
-            HStack(spacing: 4) {
-                // 🟢 Tryタスクのみアイコンを表示し、通常の丸（circle）は削除
-                if task.type == .tryCarryOver {
-                    Image(systemName: "lightbulb.fill")
-                        .foregroundColor(task.isCompleted ? .gray.opacity(0.6) : .orange)
-                        .font(.system(size: fontSize - 1))
-                }
-                
-                Text(task.title)
-                    .font(.system(size: fontSize, weight: task.isCompleted ? .regular : .medium))
-                    .strikethrough(task.isCompleted)
-                    .foregroundColor(task.isCompleted ? .secondary : .primary)
-                    .lineLimit(1)
+    private func widgetTaskRow(task: Task, fontSize: CGFloat = 11) -> some View {
+        HStack(spacing: 4) {
+            if task.type == .tryCarryOver {
+                Image(systemName: "lightbulb.fill")
+                    .foregroundColor(task.isCompleted ? .gray.opacity(0.6) : .orange)
+                    .font(.system(size: fontSize - 1))
             }
+            Text(task.title)
+                .font(.system(size: fontSize, weight: task.isCompleted ? .regular : .medium))
+                .strikethrough(task.isCompleted)
+                .foregroundColor(task.isCompleted ? .secondary : .primary)
+                .lineLimit(1)
         }
-    // MARK: - ウィジェット本体とBundle (変更なし)
+    }
+    
     struct GoalWidget: Widget {
         let kind: String = "GoalWidget"
         
@@ -219,8 +194,8 @@ struct GoalWidgetEntryView : View {
                         Color(UIColor.systemBackground)
                     }
             }
-            .configurationDisplayName("HabitSpark")
-            .description("今日のタスクの進捗をすばやく確認できます。")
+            .configurationDisplayName(String(localized: "HabitSpark"))
+            .description(String(localized: "今日のタスクの進捗をすばやく確認できます。"))
             .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryInline])
         }
     }
@@ -231,5 +206,4 @@ struct GoalWidgetEntryView : View {
             GoalWidget()
         }
     }
-    
 }
