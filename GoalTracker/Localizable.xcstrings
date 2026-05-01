@@ -124,7 +124,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "+%2$lld@🔥"
+            "value" : "+%2$lld🔥"
           }
         }
       }
@@ -136,7 +136,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%2$lld@📉"
+            "value" : "%2$lld📉"
           }
         }
       }
@@ -148,7 +148,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "+%2$lld@🎉"
+            "value" : "+%2$lld🎉"
           }
         }
       }
@@ -280,7 +280,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@"
+            "value" : "•%@"
           }
         }
       }
@@ -1984,7 +1984,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "昨日より\" = \"From Yesterday"
+            "value" : "From Yesterday"
           }
         }
       }
