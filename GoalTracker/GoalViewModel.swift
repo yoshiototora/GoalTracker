@@ -19,12 +19,35 @@ class GoalViewModel: ObservableObject {
     
     init() { loadSettings(); loadFutureVisions(); loadCachedData() }
     
-    private func sortTasks(_ tasks: inout [Task]) {
+    // 既存の private func sortTasks(_ tasks: inout [Task]) を以下に置き換えます
+    private func sortTasks(_ tasks: inout [Task], for date: Date) {
+        // カレンダーの並び順情報を取得
+        let monthData = coreData.fetchMonthData(for: monthKey(date))
+        let dailyGoalTitles = monthData.dailyGoals.map { $0.title }
+        
+        let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
+        let prevNote = coreData.fetchDailyNote(for: dateKey(prevDate))
+        let yesterdayTryList = prevNote.tryList.map { $0.title }
+        
         tasks.sort { t1, t2 in
+            // 1. まずタスクの種類でソート
             if t1.type != t2.type {
                 let priority: [TaskType: Int] = [.dailyGoal: 0, .tryCarryOver: 1, .normal: 2]
                 return (priority[t1.type] ?? 3) < (priority[t2.type] ?? 3)
             }
+            
+            // 2. 同じ種類なら、カレンダー設定や前日のTryの順番に合わせる
+            if t1.type == .dailyGoal {
+                let idx1 = dailyGoalTitles.firstIndex(of: t1.title) ?? 999
+                let idx2 = dailyGoalTitles.firstIndex(of: t2.title) ?? 999
+                if idx1 != idx2 { return idx1 < idx2 }
+            } else if t1.type == .tryCarryOver {
+                let idx1 = yesterdayTryList.firstIndex(of: t1.title) ?? 999
+                let idx2 = yesterdayTryList.firstIndex(of: t2.title) ?? 999
+                if idx1 != idx2 { return idx1 < idx2 }
+            }
+            
+            // 3. それ以外（通常のタスクなど）はID順
             return t1.id.uuidString < t2.id.uuidString
         }
     }
@@ -57,25 +80,31 @@ class GoalViewModel: ObservableObject {
     
     func getNote(for date: Date) -> DailyNote {
         var note = coreData.fetchDailyNote(for: dateKey(date))
-        sortTasks(&note.tasks)
+        sortTasks(&note.tasks, for: date)
         return note
     }
     func getWeekData(for date: Date) -> WeekData { return coreData.fetchWeekData(for: getCustomWeekInfo(for: date).key) }
     func getMonthData(for date: Date) -> MonthData { return coreData.fetchMonthData(for: monthKey(date)) }
     
     func loadCachedData() {
-        currentDailyNote = getNote(for: selectedDate)
-        currentWeekData = getWeekData(for: selectedDate)
-        currentMonthData = getMonthData(for: selectedDate)
-        let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: selectedDate) ?? selectedDate
-        nextMonthData = getMonthData(for: nextMonth)
-        currentDailyStreak = calculateDailyStreak()
-    }
+            currentDailyNote = getNote(for: selectedDate)
+            currentWeekData = getWeekData(for: selectedDate)
+            currentMonthData = getMonthData(for: selectedDate)
+            
+            // 🌟 ここを修正：来月のデータを取得する際は「来月の1日」を基準にする
+            let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: selectedDate) ?? selectedDate
+            var comps = Calendar.current.dateComponents([.year, .month], from: nextMonth)
+            comps.day = 1
+            let firstDayOfNextMonth = Calendar.current.date(from: comps) ?? nextMonth
+            nextMonthData = getMonthData(for: firstDayOfNextMonth)
+            
+            currentDailyStreak = calculateDailyStreak()
+        }
     
     // MARK: - Tasks Updates
     func addTask(title: String, for date: Date) {
         var note = getNote(for: date); note.tasks.append(Task(title: title, type: .normal))
-        sortTasks(&note.tasks)
+        sortTasks(&note.tasks, for: date)
         coreData.saveDailyNote(note, for: dateKey(date))
         if Calendar.current.isDate(date, inSameDayAs: selectedDate) { currentDailyNote = note }
         currentDailyStreak = calculateDailyStreak()
@@ -85,7 +114,7 @@ class GoalViewModel: ObservableObject {
         var note = getNote(for: date)
         if let idx = note.tasks.firstIndex(where: { $0.id == id }) {
             note.tasks[idx].isCompleted.toggle()
-            sortTasks(&note.tasks)
+            sortTasks(&note.tasks, for: date)
             coreData.saveDailyNote(note, for: dateKey(date))
             if Calendar.current.isDate(date, inSameDayAs: selectedDate) { currentDailyNote = note }
             currentDailyStreak = calculateDailyStreak()
@@ -108,7 +137,7 @@ class GoalViewModel: ObservableObject {
             
             note.tasks[idx].title = newTitle
             note.tasks[idx].categoryId = newCategoryId
-            sortTasks(&note.tasks)
+            sortTasks(&note.tasks, for: date)
             coreData.saveDailyNote(note, for: dateKey(date))
             
             if taskType == .dailyGoal {
@@ -294,7 +323,7 @@ class GoalViewModel: ObservableObject {
         }
         
         if isMonthChanged { coreData.saveMonthData(monthData, for: monthKey(date)) }
-        sortTasks(&note.tasks)
+        sortTasks(&note.tasks, for: date)
         coreData.saveDailyNote(note, for: dateKey(date))
         
         // 週次目標の同期

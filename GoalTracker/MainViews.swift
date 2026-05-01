@@ -108,15 +108,42 @@ struct HomeView: View {
             .onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    if !isToday {
-                        Button(action: { withAnimation { viewModel.selectedDate = Date() } }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "arrow.uturn.backward.circle")
-                                Text("今日に戻る")
+                    HStack(spacing: 8) {
+                        // 前日へボタン
+                        Button(action: {
+                            let prev = Calendar.current.date(byAdding: .day, value: -1, to: viewModel.selectedDate) ?? viewModel.selectedDate
+                            let start = viewModel.appSettings.appStartDate.map { Calendar.current.startOfDay(for: $0) } ?? Date.distantPast
+                            if Calendar.current.startOfDay(for: prev) >= start {
+                                withAnimation { viewModel.selectedDate = prev }
                             }
-                            .font(.caption).bold().foregroundColor(.blue)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.1)).cornerRadius(12)
+                        }) {
+                            let start = viewModel.appSettings.appStartDate.map { Calendar.current.startOfDay(for: $0) } ?? Date.distantPast
+                            let currentStart = Calendar.current.startOfDay(for: viewModel.selectedDate)
+                            Image(systemName: "chevron.left")
+                                .foregroundColor(currentStart > start ? .blue : .gray.opacity(0.5))
+                        }
+                        
+                        // 翌日へボタン
+                        Button(action: {
+                            let next = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.selectedDate) ?? viewModel.selectedDate
+                            let today = Calendar.current.startOfDay(for: Date())
+                            if Calendar.current.startOfDay(for: next) <= today {
+                                withAnimation { viewModel.selectedDate = next }
+                            }
+                        }) {
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(Calendar.current.isDateInToday(viewModel.selectedDate) ? .gray.opacity(0.5) : .blue)
+                        }
+                        .disabled(Calendar.current.isDateInToday(viewModel.selectedDate))
+                        
+                        // 今日へ戻るボタン
+                        if !isToday {
+                            Button(action: { withAnimation { viewModel.selectedDate = Date() } }) {
+                                Text("今日")
+                                    .font(.caption).bold().foregroundColor(.blue)
+                                    .padding(.horizontal, 8).padding(.vertical, 4)
+                                    .background(Color.blue.opacity(0.1)).cornerRadius(12)
+                            }
                         }
                     }
                 }
@@ -249,15 +276,42 @@ struct ReflectionView: View {
             .onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    if !isToday {
-                        Button(action: { withAnimation { viewModel.selectedDate = Date() } }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "arrow.uturn.backward.circle")
-                                Text("今日に戻る")
+                    HStack(spacing: 8) {
+                        // 前日へボタン
+                        Button(action: {
+                            let prev = Calendar.current.date(byAdding: .day, value: -1, to: viewModel.selectedDate) ?? viewModel.selectedDate
+                            let start = viewModel.appSettings.appStartDate.map { Calendar.current.startOfDay(for: $0) } ?? Date.distantPast
+                            if Calendar.current.startOfDay(for: prev) >= start {
+                                withAnimation { viewModel.selectedDate = prev }
                             }
-                            .font(.caption).bold().foregroundColor(.blue)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.1)).cornerRadius(12)
+                        }) {
+                            let start = viewModel.appSettings.appStartDate.map { Calendar.current.startOfDay(for: $0) } ?? Date.distantPast
+                            let currentStart = Calendar.current.startOfDay(for: viewModel.selectedDate)
+                            Image(systemName: "chevron.left")
+                                .foregroundColor(currentStart > start ? .blue : .gray.opacity(0.5))
+                        }
+                        
+                        // 翌日へボタン
+                        Button(action: {
+                            let next = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.selectedDate) ?? viewModel.selectedDate
+                            let today = Calendar.current.startOfDay(for: Date())
+                            if Calendar.current.startOfDay(for: next) <= today {
+                                withAnimation { viewModel.selectedDate = next }
+                            }
+                        }) {
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(Calendar.current.isDateInToday(viewModel.selectedDate) ? .gray.opacity(0.5) : .blue)
+                        }
+                        .disabled(Calendar.current.isDateInToday(viewModel.selectedDate))
+                        
+                        // 今日へ戻るボタン
+                        if !isToday {
+                            Button(action: { withAnimation { viewModel.selectedDate = Date() } }) {
+                                Text("今日")
+                                    .font(.caption).bold().foregroundColor(.blue)
+                                    .padding(.horizontal, 8).padding(.vertical, 4)
+                                    .background(Color.blue.opacity(0.1)).cornerRadius(12)
+                            }
                         }
                     }
                 }
@@ -318,8 +372,17 @@ struct ReflectionView: View {
     
     @ViewBuilder private func monthlyTab() -> some View {
         let monthData = viewModel.currentMonthData
-        let nextMonthDate = Calendar.current.date(byAdding: .month, value: 1, to: viewModel.selectedDate) ?? viewModel.selectedDate
-        let nextMonthData = viewModel.getMonthData(for: nextMonthDate)
+        
+        // 🌟 来月の1日を確実に生成する
+        let nextMonthDate: Date = {
+            let cal = Calendar.current
+            let nextMonth = cal.date(byAdding: .month, value: 1, to: viewModel.selectedDate) ?? viewModel.selectedDate
+            var comps = cal.dateComponents([.year, .month], from: nextMonth)
+            comps.day = 1
+            return cal.date(from: comps) ?? nextMonth
+        }()
+        let nextMonthData = viewModel.nextMonthData
+        
         let weekData = viewModel.currentWeekData
         let targetRefDate = Calendar.current.startOfDay(for: viewModel.selectedDate)
         
@@ -784,7 +847,6 @@ struct GoalListSection: View {
     private func addGoal() {
         if !tempTitle.isEmpty {
             var n = goals
-            // 🌟 修正：startDate（計算開始日）も targetDate（表示日）も、選択した日付にする
             n.append(Goal(title: tempTitle, categoryId: selectedCategoryId, startDate: displayDate, targetDate: displayDate))
             onUpdate(n)
             tempTitle = ""
