@@ -209,7 +209,11 @@ struct HomeView: View {
                                     if task.isYearlyReflection && Calendar.current.component(.month, from: viewModel.selectedDate) != 12 { return }
                                     let impact = UIImpactFeedbackGenerator(style: .medium)
                                     impact.impactOccurred()
-                                    viewModel.toggleTask(id: task.id, for: viewModel.selectedDate)
+                                    
+                                    // 🌟 追加: withAnimationで囲む
+                                    withAnimation {
+                                        viewModel.toggleTask(id: task.id, for: viewModel.selectedDate)
+                                    }
                                 }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     if task.type == .normal {
@@ -453,8 +457,25 @@ struct ReflectionView: View {
                     )
                 }
 
-                ReflectionAchievementCard(title: "今週の達成度", rate1: viewModel.getWeeklyDailyAvgRate(for: viewModel.selectedDate), rate2: viewModel.getWeeklyGoalRate(for: viewModel.selectedDate), rate3: nil, color2: .orange, color3: .clear, comparisonText: viewModel.getComparisonText(for: viewModel.selectedDate, isWeekly: true), totalDoneCount: viewModel.getCompletedTasksCount(for: viewModel.selectedDate, isWeekly: true), tryDoneCount: viewModel.getTryExecutionCount(for: viewModel.selectedDate, isWeekly: true))
-                ProgressListView(title: "日次目標の達成状況", items: viewModel.getDailyGoalsProgressStats(for: viewModel.selectedDate, isWeekly: true))
+                ReflectionAchievementCard(
+                    title: "今週の達成度",
+                    rate1: viewModel.getWeeklyDailyAvgRate(for: viewModel.selectedDate, restrictedToMonthOf: viewModel.selectedDate),
+                    rate2: viewModel.getWeeklyGoalRate(for: viewModel.selectedDate),
+                    rate3: nil,
+                    color2: .orange,
+                    color3: .clear,
+                    comparisonText: viewModel.getComparisonText(for: viewModel.selectedDate, isWeekly: true),
+                    totalDoneCount: viewModel.getCompletedTasksCount(for: viewModel.selectedDate, isWeekly: true, restrictedToMonthOf: viewModel.selectedDate),
+                    tryDoneCount: viewModel.getTryExecutionCount(for: viewModel.selectedDate, isWeekly: true, restrictedToMonthOf: viewModel.selectedDate)
+                )
+                ProgressListView(
+                        title: "日次目標の達成状況",
+                        items: viewModel.getDailyGoalsProgressStats(
+                            for: viewModel.selectedDate,
+                            isWeekly: true,
+                            restrictedToMonthOf: viewModel.selectedDate
+                        )
+                    )
                 VStack(alignment: .leading, spacing: 10) {
                     GoalListSection(title: "先週のTryの実行チェック", iconColor: .gray, goals: viewModel.getLastWeeklyTryList(for: viewModel.selectedDate), viewModel: viewModel, showCheckboxes: true, templates: [], displayDate: viewModel.getPreviousWeekDate(from: viewModel.selectedDate), onUpdate: { viewModel.updateWeeklyTryList($0, date: viewModel.getPreviousWeekDate(from: viewModel.selectedDate)) })
                     GoalListSection(title: "今週の目標チェック", iconColor: .orange, goals: weekData.goals, viewModel: viewModel, showCheckboxes: true, templates: weeklyTemplates, displayDate: viewModel.selectedDate, onUpdate: { viewModel.updateWeeklyGoals($0, date: viewModel.selectedDate) })
@@ -657,7 +678,16 @@ struct CalendarPage: View {
         ScrollView {
             VStack(spacing: 15) {
                 HStack(spacing: 10) {
-                    CompositeSummaryCard(title: LocalizedStringKey("\(viewModel.getWeeklyTitle(for: referenceDate))の達成度"), rate1: viewModel.getWeeklyDailyAvgRate(for: referenceDate), rate2: viewModel.getWeeklyGoalRate(for: referenceDate), rate3: nil, color2: .orange, color3: .clear, comparisonText: viewModel.getComparisonText(for: referenceDate, isWeekly: true))
+                    // 🌟 修正: restrictedToMonthOf: displayDate を追加
+                    CompositeSummaryCard(
+                        title: LocalizedStringKey("\(viewModel.getWeeklyTitle(for: referenceDate, restrictedToMonthOf: displayDate))の達成度"),
+                        rate1: viewModel.getWeeklyDailyAvgRate(for: referenceDate, restrictedToMonthOf: displayDate),
+                        rate2: viewModel.getWeeklyGoalRate(for: referenceDate),
+                        rate3: nil,
+                        color2: .orange,
+                        color3: .clear,
+                        comparisonText: viewModel.getComparisonText(for: referenceDate, isWeekly: true)
+                    )
                     CompositeSummaryCard(title: LocalizedStringKey("\(viewModel.getMonthlyTitle(for: displayDate))の達成度"), rate1: viewModel.getMonthlyDailyAvgRate(for: displayDate), rate2: viewModel.getMonthlyWeeklyGoalAvgRate(for: displayDate), rate3: viewModel.getMonthlyGoalRate(for: displayDate), color2: .orange, color3: .blue, comparisonText: viewModel.getComparisonText(for: displayDate, isWeekly: false))
                 }.padding(.horizontal)
                 

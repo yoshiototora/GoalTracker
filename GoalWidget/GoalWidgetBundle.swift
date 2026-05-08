@@ -6,12 +6,12 @@ struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
         SimpleEntry(date: Date(), tasks: [Task(title: String(localized: "目標を確認"), isCompleted: false)])
     }
-
+    
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
         let tasks = fetchTodayTasks()
         completion(SimpleEntry(date: Date(), tasks: tasks))
     }
-
+    
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
         let tasks = fetchTodayTasks()
         let entry = SimpleEntry(date: Date(), tasks: tasks)
@@ -20,10 +20,47 @@ struct Provider: TimelineProvider {
     }
     
     private func fetchTodayTasks() -> [Task] {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let dateKey = formatter.string(from: Date())
-        return CoreDataService.shared.fetchTasks(for: dateKey)
+        let date = Date()
+        let ymdFormatter = DateFormatter()
+        ymdFormatter.dateFormat = "yyyy-MM-dd"
+        let ymFormatter = DateFormatter()
+        ymFormatter.dateFormat = "yyyy-MM"
+        
+        let dateKey = ymdFormatter.string(from: date)
+        let monthKey = ymFormatter.string(from: date)
+        let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
+        let prevDateKey = ymdFormatter.string(from: prevDate)
+        
+        var tasks = CoreDataService.shared.fetchTasks(for: dateKey)
+        
+        // ホーム画面と同じソートをするためのデータを取得
+        let monthData = CoreDataService.shared.fetchMonthData(for: monthKey)
+        let dailyGoalTitles = monthData.dailyGoals.map { $0.title }
+        let prevNote = CoreDataService.shared.fetchDailyNote(for: prevDateKey)
+        let yesterdayTryList = prevNote.tryList.map { $0.title }
+        
+        // アプリ本体と全く同じロジックでソート
+        tasks.sort { t1, t2 in
+            if t1.isCompleted != t2.isCompleted {
+                return !t1.isCompleted && t2.isCompleted
+            }
+            if t1.type != t2.type {
+                let priority: [TaskType: Int] = [.dailyGoal: 0, .tryCarryOver: 1, .normal: 2]
+                return (priority[t1.type] ?? 3) < (priority[t2.type] ?? 3)
+            }
+            if t1.type == .dailyGoal {
+                let idx1 = dailyGoalTitles.firstIndex(of: t1.title) ?? 999
+                let idx2 = dailyGoalTitles.firstIndex(of: t2.title) ?? 999
+                if idx1 != idx2 { return idx1 < idx2 }
+            } else if t1.type == .tryCarryOver {
+                let idx1 = yesterdayTryList.firstIndex(of: t1.title) ?? 999
+                let idx2 = yesterdayTryList.firstIndex(of: t2.title) ?? 999
+                if idx1 != idx2 { return idx1 < idx2 }
+            }
+            return t1.id.uuidString < t2.id.uuidString
+        }
+        
+        return tasks
     }
 }
 
@@ -42,12 +79,8 @@ struct GoalWidgetEntryView : View {
         let completed = total - uncompleted.count
         let progress = total > 0 ? Double(completed) / Double(total) : 0.0
         
-        let displayTasks = entry.tasks.sorted {
-            if $0.isCompleted != $1.isCompleted {
-                return !$0.isCompleted && $1.isCompleted
-            }
-            return $0.id.uuidString < $1.id.uuidString
-        }
+        // 🌟 修正: Provider側で既にアプリと同じ順序にソートされているので、そのまま使う
+        let displayTasks = entry.tasks
         
         switch family {
         case .accessoryRectangular:

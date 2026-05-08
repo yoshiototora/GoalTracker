@@ -27,6 +27,9 @@ class GoalViewModel: ObservableObject {
         let yesterdayTryList = prevNote.tryList.map { $0.title }
         
         tasks.sort { t1, t2 in
+            if t1.isCompleted != t2.isCompleted {
+                        return !t1.isCompleted && t2.isCompleted
+                    }
             if t1.type != t2.type {
                 let priority: [TaskType: Int] = [.dailyGoal: 0, .tryCarryOver: 1, .normal: 2]
                 return (priority[t1.type] ?? 3) < (priority[t2.type] ?? 3)
@@ -68,9 +71,29 @@ class GoalViewModel: ObservableObject {
             return date.formatted(.dateTime.year().month().day())
         }
         
-        func getWeeklyTitle(for date: Date) -> String {
-            let dates = getCustomWeekInfo(for: date).dates; guard let first = dates.first, let last = dates.last else { return "" }
-            return "\(first.formatted(.dateTime.month().day())) - \(last.formatted(.dateTime.month().day()))"
+        // 🌟 修正：表示する期間を月内に収めるオプションを追加
+        func getWeeklyTitle(for date: Date, restrictedToMonthOf monthDate: Date? = nil) -> String {
+            var dates = getCustomWeekInfo(for: date).dates
+            
+            // 指定された月がある場合、その月の日付だけに絞り込む
+            if let limitMonthDate = monthDate {
+                let cal = Calendar.current
+                let targetMonth = cal.component(.month, from: limitMonthDate)
+                let targetYear = cal.component(.year, from: limitMonthDate)
+                dates = dates.filter {
+                    cal.component(.month, from: $0) == targetMonth &&
+                    cal.component(.year, from: $0) == targetYear
+                }
+            }
+            
+            guard let first = dates.first, let last = dates.last else { return "" }
+            
+            // 1日しかない場合はその日だけ、複数日ある場合は範囲を表示
+            if first == last {
+                return first.formatted(.dateTime.month().day())
+            } else {
+                return "\(first.formatted(.dateTime.month().day())) - \(last.formatted(.dateTime.month().day()))"
+            }
         }
         
         func getMonthlyTitle(for date: Date) -> String {
@@ -207,7 +230,13 @@ class GoalViewModel: ObservableObject {
         var data = getMonthData(for: date)
         if field == .monthly { data.monthlyGoals = goals } else if field == .weekly { data.weeklyGoals = goals } else { data.dailyGoals = goals }
         coreData.saveMonthData(data, for: monthKey(date))
-        if field == .daily { syncEntireMonth(for: date) } else { syncAll(for: date) }
+        
+        // 🌟 修正: .weekly の場合も月全体を同期するように変更
+        if field == .daily || field == .weekly {
+            syncEntireMonth(for: date)
+        } else {
+            syncAll(for: date)
+        }
         WidgetCenter.shared.reloadAllTimelines()
     }
     func updateMonthlyTryList(_ list: [Goal], date: Date) {
@@ -229,7 +258,24 @@ class GoalViewModel: ObservableObject {
         let start = appSettings.appStartDate.map { Calendar.current.startOfDay(for: $0) } ?? Date.distantPast
         return dates.filter { let d = Calendar.current.startOfDay(for: $0); return d <= today && d >= start }
     }
-    func getWeeklyDailyAvgRate(for date: Date) -> Double { let dates = getValidDates(from: getCustomWeekInfo(for: date).dates); guard !dates.isEmpty else { return 0 }; return dates.map { getDailyCompletionRate(for: $0) }.reduce(0, +) / Double(dates.count) }
+    // 🌟 修正: restrictedToMonthOf パラメータを追加
+    func getWeeklyDailyAvgRate(for date: Date, restrictedToMonthOf monthDate: Date? = nil) -> Double {
+        var dates = getValidDates(from: getCustomWeekInfo(for: date).dates)
+        
+        // 指定された月の日付のみに絞り込む
+        if let limitMonthDate = monthDate {
+            let cal = Calendar.current
+            let targetMonth = cal.component(.month, from: limitMonthDate)
+            let targetYear = cal.component(.year, from: limitMonthDate)
+            dates = dates.filter {
+                cal.component(.month, from: $0) == targetMonth &&
+                cal.component(.year, from: $0) == targetYear
+            }
+        }
+        
+        guard !dates.isEmpty else { return 0 }
+        return dates.map { getDailyCompletionRate(for: $0) }.reduce(0, +) / Double(dates.count)
+    }
     func getWeeklyGoalRate(for date: Date) -> Double? {
         let goals = getWeekData(for: date).goals; guard !goals.isEmpty else { return nil }
         return Double(goals.filter { $0.isCompleted }.count) / Double(goals.count)
@@ -254,8 +300,43 @@ class GoalViewModel: ObservableObject {
         let goals = getMonthData(for: date).monthlyGoals; guard !goals.isEmpty else { return nil }
         return Double(goals.filter { $0.isCompleted }.count) / Double(goals.count)
     }
-    func getCompletedTasksCount(for date: Date, isWeekly: Bool) -> Int { let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date); return getValidDates(from: dates).reduce(0) { sum, d in sum + getNote(for: d).tasks.filter { $0.isCompleted }.count } }
-    func getTryExecutionCount(for date: Date, isWeekly: Bool) -> Int { let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date); return getValidDates(from: dates).reduce(0) { sum, d in sum + getNote(for: d).tasks.filter { $0.isCompleted && $0.type == .tryCarryOver }.count } }
+    // 完了タスク数のカウントを月で制限可能にする
+    func getCompletedTasksCount(for date: Date, isWeekly: Bool, restrictedToMonthOf monthDate: Date? = nil) -> Int {
+        let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date)
+        var validDates = getValidDates(from: dates)
+        
+        // 🌟 追加：月またぎの場合、指定された月の日付のみに絞り込む
+        if isWeekly, let limitMonthDate = monthDate {
+            let cal = Calendar.current
+            let targetMonth = cal.component(.month, from: limitMonthDate)
+            let targetYear = cal.component(.year, from: limitMonthDate)
+            validDates = validDates.filter {
+                cal.component(.month, from: $0) == targetMonth &&
+                cal.component(.year, from: $0) == targetYear
+            }
+        }
+        
+        return validDates.reduce(0) { sum, d in sum + getNote(for: d).tasks.filter { $0.isCompleted }.count }
+    }
+
+    // Try実行数のカウントを月で制限可能にする
+    func getTryExecutionCount(for date: Date, isWeekly: Bool, restrictedToMonthOf monthDate: Date? = nil) -> Int {
+        let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date)
+        var validDates = getValidDates(from: dates)
+        
+        // 🌟 追加：月またぎの場合、指定された月の日付のみに絞り込む
+        if isWeekly, let limitMonthDate = monthDate {
+            let cal = Calendar.current
+            let targetMonth = cal.component(.month, from: limitMonthDate)
+            let targetYear = cal.component(.year, from: limitMonthDate)
+            validDates = validDates.filter {
+                cal.component(.month, from: $0) == targetMonth &&
+                cal.component(.year, from: $0) == targetYear
+            }
+        }
+        
+        return validDates.reduce(0) { sum, d in sum + getNote(for: d).tasks.filter { $0.isCompleted && $0.type == .tryCarryOver }.count }
+    }
     func getWeeklyTotalRate(for date: Date) -> Double { let r1 = getWeeklyDailyAvgRate(for: date); if let r2 = getWeeklyGoalRate(for: date) { return (r1 + r2) / 2.0 }; return r1 }
     func getMonthlyTotalRate(for date: Date) -> Double { let r1 = getMonthlyDailyAvgRate(for: date); var total = r1; var count = 1.0; if let r2 = getMonthlyWeeklyGoalAvgRate(for: date) { total += r2; count += 1.0 }; if let r3 = getMonthlyGoalRate(for: date) { total += r3; count += 1.0 }; return total / count }
 
@@ -373,14 +454,27 @@ class GoalViewModel: ObservableObject {
     func refreshNotifications() { let today = Date(); let note = getNote(for: today); let hasUncompleted = note.tasks.isEmpty ? true : note.tasks.contains(where: { !$0.isCompleted }); NotificationService.shared.updateNotifications(settings: appSettings, currentStreak: currentDailyStreak, todayTasks: note.tasks, yesterdayTrys: getYesterdayTryList(for: today), hasUncompletedTasks: hasUncompleted) }
 
     // MARK: - Individual Goal Progress
-    func getDailyGoalProgress(goal: Goal, for date: Date, isWeekly: Bool) -> String {
+    func getDailyGoalProgress(goal: Goal, for date: Date, isWeekly: Bool, restrictedToMonthOf monthDate: Date? = nil) -> String {
         let dates = isWeekly ? getCustomWeekInfo(for: date).dates : getMonthDates(for: date)
-        let validDates = getValidDates(from: dates).filter {
+        var validDates = getValidDates(from: dates).filter {
             Calendar.current.startOfDay(for: $0) >= Calendar.current.startOfDay(for: goal.startDate)
         }
+        
+        // 🌟 追加：月またぎの場合、指定された月の日付のみに絞り込む
+        if isWeekly, let limitMonthDate = monthDate {
+            let cal = Calendar.current
+            let targetMonth = cal.component(.month, from: limitMonthDate)
+            let targetYear = cal.component(.year, from: limitMonthDate)
+            validDates = validDates.filter {
+                cal.component(.month, from: $0) == targetMonth &&
+                cal.component(.year, from: $0) == targetYear
+            }
+        }
+        
         guard !validDates.isEmpty else { return "-/-" }
         let completed = validDates.filter { d in getNote(for: d).tasks.contains(where: { $0.title == goal.title && $0.type == .dailyGoal && $0.isCompleted }) }.count
-        let rate = Int((Double(completed) / Double(validDates.count)) * 100); return String(localized: "\(completed)/\(validDates.count)回 (\(rate)%)")
+        let rate = Int((Double(completed) / Double(validDates.count)) * 100)
+        return String(localized: "\(completed)/\(validDates.count)回 (\(rate)%)")
     }
     
     func getWeeklyGoalProgress(goal: Goal, for monthDate: Date) -> String {
@@ -394,14 +488,15 @@ class GoalViewModel: ObservableObject {
         let rate = Int((Double(completed) / Double(passedWeekKeys.count)) * 100); return String(localized: "\(completed)/\(passedWeekKeys.count)週 (\(rate)%)")
     }
     
-    func getDailyGoalsProgressStats(for date: Date, isWeekly: Bool) -> [(String, String)] {
+    func getDailyGoalsProgressStats(for date: Date, isWeekly: Bool, restrictedToMonthOf monthDate: Date? = nil) -> [(String, String)] {
         let df = DateFormatter(); df.dateFormat = "M/d"
         let targetDate = Calendar.current.startOfDay(for: date)
         return getMonthData(for: date).dailyGoals
             .filter { Calendar.current.startOfDay(for: $0.startDate) <= targetDate }
             .map { goal in
                 let datePrefix = goal.startDate > Date.distantPast ? "\(df.string(from: goal.startDate))〜 " : ""
-                return ("\(datePrefix)\(goal.title)", getDailyGoalProgress(goal: goal, for: date, isWeekly: isWeekly))
+                // 🌟 修正：引数を getDailyGoalProgress に渡す
+                return ("\(datePrefix)\(goal.title)", getDailyGoalProgress(goal: goal, for: date, isWeekly: isWeekly, restrictedToMonthOf: monthDate))
             }
     }
     
