@@ -361,10 +361,12 @@ struct ReflectionView: View {
                     if isDecember { Text("年次").tag(3) }
                 }
                 .pickerStyle(SegmentedPickerStyle()).padding()
-                .onChange(of: viewModel.selectedDate) { _, _ in
+                .onChange(of: viewModel.selectedDate) { _, newDate in
                     if reflectionType == 1 && !shouldShowWeeklyReflection { reflectionType = 0 }
                     if reflectionType == 2 && !shouldShowMonthlyReflection { reflectionType = 0 }
                     if reflectionType == 3 && !isDecember { reflectionType = 0 }
+                    viewModel.syncAll(for: newDate)
+                    viewModel.carryOverUncompletedTries(for: newDate)
                 }
                 
                 TabView(selection: $reflectionType) {
@@ -377,7 +379,10 @@ struct ReflectionView: View {
             }
             .navigationTitle(isToday ? LocalizedStringKey("振り返り") : LocalizedStringKey(viewModel.getDailyTitle(for: viewModel.selectedDate)))
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear { viewModel.syncAll(for: viewModel.selectedDate) }
+            .onAppear {
+                viewModel.syncAll(for: viewModel.selectedDate)
+                viewModel.carryOverUncompletedTries(for: viewModel.selectedDate)
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 8) {
@@ -433,6 +438,65 @@ struct ReflectionView: View {
                 }
                 
                 ReflectionAchievementCard(title: LocalizedStringKey("\(viewModel.getDailyTitle(for: viewModel.selectedDate))の達成度"), rate1: viewModel.getDailyCompletionRate(for: viewModel.selectedDate), rate2: nil, rate3: nil, color2: .clear, color3: .clear, comparisonText: nil, totalDoneCount: note.tasks.filter { $0.isCompleted }.count, tryDoneCount: note.tasks.filter { $0.isCompleted && $0.type == .tryCarryOver }.count)
+                
+                let overdueTries = viewModel.getOverdueTries(for: viewModel.selectedDate)
+                ForEach(overdueTries, id: \.self) { tryTitle in
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(alignment: .top) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.title3)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("「\(tryTitle)」")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                
+                                Text("このTryは少しハードルが高かったようです。もう一度『Problem（課題）』として見直してみませんか？")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(nil)
+                            }
+                        }
+                        
+                        HStack(spacing: 12) {
+                            Button(action: {
+                                withAnimation {
+                                    viewModel.convertToProblem(title: tryTitle, for: viewModel.selectedDate)
+                                }
+                            }) {
+                                Text("Problemに変更")
+                                    .font(.subheadline).bold()
+                                    .foregroundColor(.orange)
+                                    .padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color.orange.opacity(0.1))
+                                    .cornerRadius(10)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            Button(action: {
+                                withAnimation {
+                                    viewModel.continueOverdueTry(title: tryTitle, for: viewModel.selectedDate)
+                                }
+                            }) {
+                                Text("Tryとして継続")
+                                    .font(.subheadline).bold()
+                                    .foregroundColor(.white)
+                                    .padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color.blue)
+                                    .cornerRadius(10)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                    .padding(16)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(15)
+                    .shadow(color: Color.black.opacity(0.05), radius: 8, y: 4)
+                    .padding(.horizontal)
+                }
                 
                 VStack(alignment: .leading, spacing: 10) {
                     TextEditorView(title: "Keep（できたこと）", text: Binding(get: { note.keep }, set: { viewModel.updateDailyNote($0, field: .keep, date: viewModel.selectedDate) }), placeholder: "例：朝30分早く起きて読書できた")

@@ -138,6 +138,10 @@ class GoalViewModel: ObservableObject {
             sortTasks(&note.tasks, for: date)
             coreData.saveDailyNote(note, for: dateKey(date))
             if Calendar.current.isDate(date, inSameDayAs: selectedDate) { currentDailyNote = note }
+            
+            // 完了状態の変更を振り返り画面のTryリスト（翌日への引き継ぎ）に即座に反映させる
+            carryOverUncompletedTries(for: date)
+            
             currentDailyStreak = calculateDailyStreak()
             WidgetCenter.shared.reloadAllTimelines()
         }
@@ -195,6 +199,127 @@ class GoalViewModel: ObservableObject {
     func updateDailyTryList(_ list: [Goal], date: Date) {
         var note = getNote(for: date); note.tryList = list
         coreData.saveDailyNote(note, for: dateKey(date))
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: date) ?? date
+        syncAll(for: tomorrow)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+    
+    func carryOverUncompletedTries(for date: Date) {
+        var note = getNote(for: date)
+        var modified = false
+        
+        // Rule 1: 今日完了したTryタスクは明日のtryList（引き継ぎ用）から完全に除外する
+        let completedTries = note.tasks.filter { $0.type == .tryCarryOver && $0.isCompleted }
+        for task in completedTries {
+            if note.tryList.contains(where: { $0.title == task.title }) {
+                note.tryList.removeAll(where: { $0.title == task.title })
+                modified = true
+            }
+        }
+        
+        // Rule 2: 今日未完了のTryタスクを抽出（ただし3日連続未完了のものは自動引き継ぎ対象外にする）
+        let uncompletedTries = note.tasks.filter { $0.type == .tryCarryOver && !$0.isCompleted }
+        for task in uncompletedTries {
+            let isOverdue = consecutiveUncompletedCount(for: task.title, startingFrom: date) >= 3
+            if isOverdue {
+                continue // 3回連続未完了のTryは自動引き継ぎをスキップ（保留）
+            }
+            
+            if !note.tryList.contains(where: { $0.title == task.title }) {
+                let newGoal = Goal(title: task.title, isCompleted: false, categoryId: task.categoryId, startDate: date)
+                note.tryList.append(newGoal)
+                modified = true
+            }
+        }
+        
+        if modified {
+            coreData.saveDailyNote(note, for: dateKey(date))
+            if Calendar.current.isDate(date, inSameDayAs: selectedDate) {
+                currentDailyNote = note
+            }
+            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: date) ?? date
+            syncAll(for: tomorrow)
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+    
+    func consecutiveUncompletedCount(for title: String, startingFrom date: Date) -> Int {
+        var count = 0
+        var checkDate = date
+        let cal = Calendar.current
+        
+        for _ in 0..<3 {
+            let note = getNote(for: checkDate)
+            if let task = note.tasks.first(where: { $0.title == title }) {
+                if task.type == .tryCarryOver && !task.isCompleted {
+                    count += 1
+                } else {
+                    break
+                }
+            } else {
+                break
+            }
+            guard let prevDate = cal.date(byAdding: .day, value: -1, to: checkDate) else { break }
+            checkDate = prevDate
+        }
+        return count
+    }
+    
+    func getOverdueTries(for date: Date) -> [String] {
+        let note = getNote(for: date)
+        let uncompletedTries = note.tasks.filter { $0.type == .tryCarryOver && !$0.isCompleted }
+        
+        var overdue: [String] = []
+        for task in uncompletedTries {
+            if note.tryList.contains(where: { $0.title == task.title }) {
+                continue // すでに継続を選択済みの場合は除外
+            }
+            if consecutiveUncompletedCount(for: task.title, startingFrom: date) >= 3 {
+                overdue.append(task.title)
+            }
+        }
+        return overdue
+    }
+    
+    func continueOverdueTry(title: String, for date: Date) {
+        var note = getNote(for: date)
+        let categoryId = note.tasks.first(where: { $0.title == title })?.categoryId ?? "none"
+        
+        if !note.tryList.contains(where: { $0.title == title }) {
+            let newGoal = Goal(title: title, isCompleted: false, categoryId: categoryId, startDate: date)
+            note.tryList.append(newGoal)
+            coreData.saveDailyNote(note, for: dateKey(date))
+            
+            if Calendar.current.isDate(date, inSameDayAs: selectedDate) {
+                currentDailyNote = note
+            }
+            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: date) ?? date
+            syncAll(for: tomorrow)
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+    
+    func convertToProblem(title: String, for date: Date) {
+        var note = getNote(for: date)
+        
+        // 1. 今日のProblemテキストに追記
+        let prefix = note.problem.isEmpty ? "" : "\n"
+        let bullet = "- \(title)"
+        note.problem += "\(prefix)\(bullet)"
+        
+        // 2. 今日のタスクタイプを.normalに変更して、自動引き継ぎ/未完了判定の対象外にする
+        if let idx = note.tasks.firstIndex(where: { $0.title == title && $0.type == .tryCarryOver }) {
+            note.tasks[idx].type = .normal
+        }
+        
+        // 3. Tryリストから削除
+        note.tryList.removeAll(where: { $0.title == title })
+        
+        coreData.saveDailyNote(note, for: dateKey(date))
+        
+        if Calendar.current.isDate(date, inSameDayAs: selectedDate) {
+            currentDailyNote = note
+        }
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: date) ?? date
         syncAll(for: tomorrow)
         WidgetCenter.shared.reloadAllTimelines()
@@ -368,7 +493,14 @@ class GoalViewModel: ObservableObject {
             .filter { Calendar.current.startOfDay(for: $0.startDate) <= targetDate }
             .map { $0.title }
             
-        let yesterdayTryGoals = getYesterdayTryGoals(for: date)
+        // 昨日のタスクから完了済みのTryタスクのタイトルを抽出して除外ガードをかける
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
+        let yesterdayNote = getNote(for: yesterday)
+        let yesterdayCompletedTryTitles = yesterdayNote.tasks.filter { $0.type == .tryCarryOver && $0.isCompleted }.map { $0.title }
+        
+        let yesterdayTryGoals = getYesterdayTryGoals(for: date).filter { goal in
+            !yesterdayCompletedTryTitles.contains(goal.title)
+        }
         let allTryTitles = yesterdayTryGoals.map { $0.title }
         
         note.tasks.removeAll { ($0.type == .dailyGoal && !validDailyTitles.contains($0.title)) || ($0.type == .tryCarryOver && !allTryTitles.contains($0.title)) }
