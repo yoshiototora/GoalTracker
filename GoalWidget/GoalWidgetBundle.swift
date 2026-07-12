@@ -15,7 +15,8 @@ struct Provider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
         let tasks = fetchTodayTasks()
         let entry = SimpleEntry(date: Date(), tasks: tasks)
-        let nextUpdate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())!
+        // 🌟 修正: 強制アンラップを避け、失敗時は1時間後の日時をフォールバックにする(更新間隔は従来どおり1時間)
+        let nextUpdate = Calendar.current.date(byAdding: .hour, value: 1, to: Date()) ?? Date().addingTimeInterval(3600)
         completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
     }
     

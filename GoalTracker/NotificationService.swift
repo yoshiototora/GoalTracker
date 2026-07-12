@@ -3,22 +3,37 @@ import Foundation
 
 class NotificationService {
     static let shared = NotificationService()
-    
+
+    /// 通知許可のリクエスト。
+    /// 🌟 修正: OSの許可ダイアログはユーザーが設定画面で通知トグルをONにした
+    /// タイミングでのみ表示する(アプリ離脱時などに自動表示しない)。
+    func requestAuthorization(completion: ((Bool) -> Void)? = nil) {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            DispatchQueue.main.async {
+                completion?(granted)
+            }
+        }
+    }
+
+    /// 通知の再スケジュール。
+    /// 🌟 修正: requestAuthorizationは呼ばず、現在の権限状態を確認して
+    /// 通知可能な状態(authorized / provisional / ephemeral)の場合だけ処理する。
+    /// 権限がnotDeterminedのままなら何もしない(ダイアログも出さない)。
     func updateNotifications(settings: AppSettings, currentStreak: Int = 0, todayTasks: [Task] = [], yesterdayTrys: [String] = [], hasUncompletedTasks: Bool = true) {
         let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+        center.getNotificationSettings { notificationSettings in
+            let status = notificationSettings.authorizationStatus
+            guard status == .authorized || status == .provisional || status == .ephemeral else { return }
             DispatchQueue.main.async {
-                if granted {
-                    center.removePendingNotificationRequests(withIdentifiers: ["GoalNotification", "ReflectionNotification"])
-                    
-                    if settings.goalNotificationEnabled {
-                        let goalMsg = self.generateGoalMessage(streak: currentStreak, tasks: todayTasks, hasUncompleted: hasUncompletedTasks)
-                        self.schedule(id: "GoalNotification", title: String(localized: "🟢 今日の目標"), body: goalMsg, time: settings.goalNotificationTime)
-                    }
-                    if settings.reflectionNotificationEnabled {
-                        let refMsg = self.generateReflectionMessage(yesterdayTrys: yesterdayTrys)
-                        self.schedule(id: "ReflectionNotification", title: String(localized: "📝 振り返り"), body: refMsg, time: settings.reflectionNotificationTime)
-                    }
+                center.removePendingNotificationRequests(withIdentifiers: ["GoalNotification", "ReflectionNotification"])
+
+                if settings.goalNotificationEnabled {
+                    let goalMsg = self.generateGoalMessage(streak: currentStreak, tasks: todayTasks, hasUncompleted: hasUncompletedTasks)
+                    self.schedule(id: "GoalNotification", title: String(localized: "🟢 今日の目標"), body: goalMsg, time: settings.goalNotificationTime)
+                }
+                if settings.reflectionNotificationEnabled {
+                    let refMsg = self.generateReflectionMessage(yesterdayTrys: yesterdayTrys)
+                    self.schedule(id: "ReflectionNotification", title: String(localized: "📝 振り返り"), body: refMsg, time: settings.reflectionNotificationTime)
                 }
             }
         }

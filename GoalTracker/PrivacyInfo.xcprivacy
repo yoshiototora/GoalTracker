@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- ATT(AppTrackingTransparency)+ AdMobのパーソナライズ広告を使用しているため true -->
+	<key>NSPrivacyTracking</key>
+	<true/>
+	<!-- トラッキング用ドメインはGoogleMobileAds SDK側のプライバシーマニフェストで申告される -->
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<!-- アプリ自身のコードはユーザーデータを外部送信しない。
+	     広告SDKによる収集はSDK同梱のマニフェストで申告される -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!-- UserDefaults.standard の用途:
+			     アプリ設定(app_settings_storage)、チュートリアル完了フラグ、
+			     ヒント表示フラグ(@AppStorage)。いずれも自アプリのみが読み書きする情報のため CA92.1 -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
