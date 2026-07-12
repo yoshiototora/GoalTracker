@@ -27,9 +27,11 @@ struct ReflectionAchievementCard: View {
     let comparisonText: String?; let totalDoneCount: Int; let tryDoneCount: Int
     
     var body: some View {
-        let count = (rate3 != nil ? 3.0 : (rate2 != nil ? 2.0 : 1.0))
-        let total = (rate1 + (rate2 ?? 0) + (rate3 ?? 0)) / count
-        
+        // 🌟 修正: 非nilの達成率だけを分母にする(AchievementMath参照)
+        let ringItems = AchievementMath.validPairs([(rate: rate1, value: Color.green), (rate: rate2, value: color2), (rate: rate3, value: color3)])
+        let segments = AchievementMath.segmentBounds([rate1, rate2, rate3])
+        let total = AchievementMath.average([rate1, rate2, rate3])
+
         VStack(spacing: 16) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -43,9 +45,9 @@ struct ReflectionAchievementCard: View {
                 Spacer()
                 ZStack {
                     Circle().stroke(Color.gray.opacity(0.1), lineWidth: 12)
-                    Circle().trim(from: 0, to: rate1 / count).stroke(Color.green, style: StrokeStyle(lineWidth: 12, lineCap: .round)).rotationEffect(.degrees(-90))
-                    if let r2 = rate2 { Circle().trim(from: rate1 / count, to: (rate1 + r2) / count).stroke(color2, style: StrokeStyle(lineWidth: 12, lineCap: .round)).rotationEffect(.degrees(-90)) }
-                    if let r2 = rate2, let r3 = rate3 { Circle().trim(from: (rate1 + r2) / count, to: (rate1 + r2 + r3) / count).stroke(color3, style: StrokeStyle(lineWidth: 12, lineCap: .round)).rotationEffect(.degrees(-90)) }
+                    ForEach(0..<segments.count, id: \.self) { i in
+                        Circle().trim(from: segments[i].from, to: segments[i].to).stroke(ringItems[i].value, style: StrokeStyle(lineWidth: 12, lineCap: .round)).rotationEffect(.degrees(-90))
+                    }
                     Image(systemName: total >= 0.8 ? "crown.fill" : (total >= 0.5 ? "star.fill" : "sparkles")).font(.title2).foregroundColor(total >= 0.8 ? .yellow : .orange.opacity(0.5))
                 }.frame(width: 90, height: 90)
             }
@@ -65,8 +67,10 @@ struct CompositeSummaryCard: View {
     let title: LocalizedStringKey; let rate1: Double; let rate2: Double?; let rate3: Double?; let color2: Color; let color3: Color
     let comparisonText: String?
     var body: some View {
-        let count = (rate3 != nil ? 3.0 : (rate2 != nil ? 2.0 : 1.0))
-        let total = (rate1 + (rate2 ?? 0) + (rate3 ?? 0)) / count
+        // 🌟 修正: 非nilの達成率だけを分母にする(AchievementMath参照)
+        let ringItems = AchievementMath.validPairs([(rate: rate1, value: Color.green), (rate: rate2, value: color2), (rate: rate3, value: color3)])
+        let segments = AchievementMath.segmentBounds([rate1, rate2, rate3])
+        let total = AchievementMath.average([rate1, rate2, rate3])
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.caption).foregroundColor(.secondary).bold().lineLimit(1)
             HStack(alignment: .top) {
@@ -77,9 +81,9 @@ struct CompositeSummaryCard: View {
                 Spacer()
                 ZStack {
                     Circle().stroke(Color.gray.opacity(0.15), lineWidth: 6)
-                    Circle().trim(from: 0, to: rate1 / count).stroke(Color.green, style: StrokeStyle(lineWidth: 6, lineCap: .round)).rotationEffect(.degrees(-90))
-                    if let r2 = rate2 { Circle().trim(from: rate1 / count, to: (rate1 + r2) / count).stroke(color2, style: StrokeStyle(lineWidth: 6, lineCap: .round)).rotationEffect(.degrees(-90)) }
-                    if let r2 = rate2, let r3 = rate3 { Circle().trim(from: (rate1 + r2) / count, to: (rate1 + r2 + r3) / count).stroke(color3, style: StrokeStyle(lineWidth: 6, lineCap: .round)).rotationEffect(.degrees(-90)) }
+                    ForEach(0..<segments.count, id: \.self) { i in
+                        Circle().trim(from: segments[i].from, to: segments[i].to).stroke(ringItems[i].value, style: StrokeStyle(lineWidth: 6, lineCap: .round)).rotationEffect(.degrees(-90))
+                    }
                 }.frame(width: 40, height: 40)
             }
             HStack(spacing: 8) {
@@ -134,7 +138,7 @@ struct CalendarGridView: View {
                                 ZStack {
                                     Text("\(Calendar.current.component(.day, from: d))")
                                         .font(.caption)
-                                        .foregroundColor(isDisabled ? .gray : (rate(d) >= 0.4 ? .white : .primary))
+                                        .foregroundColor(isDisabled ? .gray : dayTextColor(for: d))
                                     
                                     if isStartDay {
                                         VStack {
@@ -156,6 +160,17 @@ struct CalendarGridView: View {
     }
     
     func rate(_ d: Date) -> Double { viewModel.getDailyCompletionRate(for: d) }
+
+    // 🌟 修正: ダークモードのコントラスト対応。
+    // 達成率が0より大きく0.4未満のセルは背景が「固定の薄緑」(getColを参照。両モード共通)のため、
+    // .primary(ダークモードで白)だと読みにくい。背景色に合わせて黒文字に固定する。
+    // 率0のセルは背景がシステム色/半透明の黄でモードに追従するため、従来どおり.primaryを使う。
+    func dayTextColor(for d: Date) -> Color {
+        let r = rate(d)
+        if r >= 0.4 { return .white }
+        if r > 0 { return .black }
+        return .primary
+    }
     func getCol(_ d: Date) -> Color {
         let r = rate(d); let note = viewModel.getNote(for: d)
         let hasReflection = !note.keep.isEmpty || !note.problem.isEmpty || note.tryList.contains { !$0.title.isEmpty }

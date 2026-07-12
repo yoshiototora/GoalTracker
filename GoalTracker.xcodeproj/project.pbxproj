@@ -67,6 +67,7 @@
 		8ED3C5932F88D408002C7E07 /* Exceptions for "GoalTracker" folder in "GoalTracker" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"app-ads.txt",
 				Info.plist,
 			);
 			target = 8EF30FEA2F7F97E100F5CEAD /* GoalTracker */;

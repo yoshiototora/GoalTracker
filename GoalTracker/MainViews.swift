@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UserNotifications
 
 // MARK: - 共通サポートビュー
 struct EmptyStateView: View {
@@ -882,16 +883,61 @@ struct FutureVisionRow: View {
 struct SettingsView: View {
     @ObservedObject var viewModel: GoalViewModel
     @State private var isTutorial = false
-    
+
+    // 🌟 修正: 通知トグルON時の許可要求を共通化。
+    // ・許可された場合: フラグはtrueのまま維持し、通知を再スケジュールする
+    // ・許可されなかった場合: 今回操作したトグルのフラグだけをfalseへ戻し、スケジュールしない
+    // ・エラーの場合: 同上+機密情報を含まないデバッグログを出す
+    // 保存とUI更新はメインスレッド上で行う。
+    private func requestNotificationAuthorization(revertOnFailure revert: @escaping () -> Void) {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    #if DEBUG
+                    print("通知許可リクエストに失敗しました: \(error.localizedDescription)")
+                    #endif
+                    revert()
+                    return
+                }
+                if granted {
+                    viewModel.refreshNotifications()
+                } else {
+                    revert()
+                }
+            }
+        }
+    }
+
     var body: some View {
         NavigationView {
             Form {
                 Section("通知設定") {
-                    Toggle("目標通知", isOn: Binding(get: { viewModel.appSettings.goalNotificationEnabled }, set: { viewModel.appSettings.goalNotificationEnabled = $0; viewModel.saveSettings() }))
+                    // 🌟 修正: OSの通知許可はトグルON時のみ要求する。
+                    // 拒否・エラー時は「目標通知」のフラグだけをfalseへ戻す(振り返り通知には触れない)
+                    Toggle("目標通知", isOn: Binding(get: { viewModel.appSettings.goalNotificationEnabled }, set: { isOn in
+                        viewModel.appSettings.goalNotificationEnabled = isOn
+                        viewModel.saveSettings()
+                        if isOn {
+                            requestNotificationAuthorization(revertOnFailure: {
+                                viewModel.appSettings.goalNotificationEnabled = false
+                                viewModel.saveSettings()
+                            })
+                        }
+                    }))
                     if viewModel.appSettings.goalNotificationEnabled {
                         DatePicker("時間", selection: Binding(get: { viewModel.appSettings.goalNotificationTime }, set: { viewModel.appSettings.goalNotificationTime = $0; viewModel.saveSettings() }), displayedComponents: .hourAndMinute)
                     }
-                    Toggle("振り返り通知", isOn: Binding(get: { viewModel.appSettings.reflectionNotificationEnabled }, set: { viewModel.appSettings.reflectionNotificationEnabled = $0; viewModel.saveSettings() }))
+                    // 🌟 修正: 拒否・エラー時は「振り返り通知」のフラグだけをfalseへ戻す(目標通知には触れない)
+                    Toggle("振り返り通知", isOn: Binding(get: { viewModel.appSettings.reflectionNotificationEnabled }, set: { isOn in
+                        viewModel.appSettings.reflectionNotificationEnabled = isOn
+                        viewModel.saveSettings()
+                        if isOn {
+                            requestNotificationAuthorization(revertOnFailure: {
+                                viewModel.appSettings.reflectionNotificationEnabled = false
+                                viewModel.saveSettings()
+                            })
+                        }
+                    }))
                     if viewModel.appSettings.reflectionNotificationEnabled {
                         DatePicker("時間", selection: Binding(get: { viewModel.appSettings.reflectionNotificationTime }, set: { viewModel.appSettings.reflectionNotificationTime = $0; viewModel.saveSettings() }), displayedComponents: .hourAndMinute)
                     }
