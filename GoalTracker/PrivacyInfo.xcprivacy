@@ -5,9 +5,14 @@
 	<!-- ATT(AppTrackingTransparency)+ AdMobのパーソナライズ広告を使用しているため true -->
 	<key>NSPrivacyTracking</key>
 	<true/>
-	<!-- トラッキング用ドメインはGoogleMobileAds SDK側のプライバシーマニフェストで申告される -->
+	<!-- NSPrivacyTracking=true の場合、トラッキングドメインを1件以上宣言する必要がある(ITMS-91064対策)。
+	     注意: ここに列挙したドメインは、ATT拒否ユーザーではiOSにより通信がブロックされる。
+	     そのため広告配信本体のドメイン(googleads.g.doubleclick.net 等)は列挙せず、
+	     トラッキング(クリック計測・コンバージョン)用ドメインのみを宣言する。 -->
 	<key>NSPrivacyTrackingDomains</key>
-	<array/>
+	<array>
+		<string>googleadservices.com</string>
+	</array>
 	<!-- アプリ自身のコードはユーザーデータを外部送信しない。
 	     広告SDKによる収集はSDK同梱のマニフェストで申告される -->
 	<key>NSPrivacyCollectedDataTypes</key>
